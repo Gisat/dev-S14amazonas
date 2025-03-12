@@ -3,6 +3,7 @@ import numpy as np
 from scipy import stats
 from skimage.morphology import remove_small_holes
 from copy import copy
+from openeo.udf.debug import inspect
 
 DEBUG = False
 
@@ -160,6 +161,9 @@ def apply_datacube(cube: xr.DataArray, context: dict) -> xr.DataArray:
     n_bands = int(numpy_array.shape[0])
     vv_vh_bandcount = int(n_bands / 2)
     half_time_steps = int(vv_vh_bandcount / 2)  # Half of the time steps
+
+    inspect(data=[n_bands], message="data shape")
+
 
     master_combined_metrics = []  # Initialize master list to store metrics for each polarization
 
