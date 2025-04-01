@@ -28,8 +28,8 @@ def download_from_s3(bucket_name, s3_path, local_path, config_path):
 
 for tile_item in tile_list:
     # Example usage:
-    bucket_name = "amazonas-archive"
-    s3_path = f"output/{detection_set}/{tile_item}"
+    bucket_name = "gisat-archive"
+    s3_path = f"backscatter"
 
     archive_detection_folder_tile = archive_detection_folder.joinpath(f"{tile_item}")
     os.makedirs(archive_detection_folder_tile, exist_ok=True)

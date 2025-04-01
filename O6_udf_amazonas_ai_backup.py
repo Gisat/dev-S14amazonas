@@ -3,7 +3,7 @@ import sys
 from typing import Dict
 import xarray as xr
 import numpy as np
-# from openeo.udf.debug import inspect
+from openeo.udf.debug import inspect
 
 # The onnx_deps folder contains the extracted contents of the dependencies archive provided in the job options
 sys.path.insert(0, "onnx_deps")
@@ -61,7 +61,7 @@ def preprocess_input(input_xr: xr.DataArray, ort_session: ort.InferenceSession) 
     input_xr = input_xr.transpose("y", "x", "bands")
     input_shape = input_xr.shape
 
-    # inspect(data= [input_xr.shape], message="ai_numpy_array_dim")
+    inspect(data= [input_xr.shape], message="ai_numpy_array_dim")
 
     # Convert to numpy array
     data = input_xr.values  # Shape (y, x, bands)
@@ -70,10 +70,10 @@ def preprocess_input(input_xr: xr.DataArray, ort_session: ort.InferenceSession) 
     n_bands = int(input_shape[2])
     vv_vh_bandcount = int(n_bands / 2)
 
-    # inspect(data=[n_bands], message="ai_nband")
-    # inspect(data=[vv_vh_bandcount], message="ai_vv_vh_bandcount")
-    #
-    # inspect(data=[data.shape], message="ai_data_shape")
+    inspect(data=[n_bands], message="ai_nband")
+    inspect(data=[vv_vh_bandcount], message="ai_vv_vh_bandcount")
+
+    inspect(data=[data.shape], message="ai_data_shape")
 
     # Extract the first 5 VH bands and 5 corresponding VV bands
     vh = data[:, :, :5]  # Shape (x, y, 5) for VH bands
@@ -118,16 +118,15 @@ def run_inference(input_np: np.ndarray, ort_session: ort.InferenceSession) -> tu
     return predicted_labels
 
 
-def postprocess_output(predicted_labels: np.ndarray, input_shape: tuple) -> tuple:
+def postprocess_output(predicted_labels: np.ndarray) -> tuple:
     """
     Postprocess the output by reshaping the predicted labels and probabilities into the original spatial structure.
     """
 
     # Reshape to match the (y, x) spatial structure
-    predicted_labels = np.squeeze(predicted_labels, axis=-1)  # Remove the last axis
     predicted_labels = np.squeeze(predicted_labels, axis=0)  # Remove the last axis
     predicted_labels = predicted_labels*10000
-    return predicted_labels.astype(int)
+    return predicted_labels
 
 
 def create_output_xarray(predicted_labels: np.ndarray,
@@ -155,32 +154,27 @@ def apply_model(input_xr: xr.DataArray) -> xr.DataArray:
     ort_session = load_onnx_model("ml_model.onnx")
 
     ## Step 2: Preprocess the input
-    # input_np, input_shape = preprocess_input(input_xr, ort_session)
-    input_xr = input_xr.transpose("y", "x", "bands")
-    input_shape = input_xr.shape
-
-    # Convert to numpy array
+    # input_xr = input_xr.transpose("y", "x", "bands")
     numpy_array = input_xr.values  # Shape (y, x, bands)
 
-    # Calculate total number of bands and time steps
-    bands = int(input_shape[2])
+    bands, dim1, dim2 = numpy_array.shape
     total_time_steps = bands // 2
     window_size = 10
     half_window = window_size // 2
     vv_vh_bandcount = total_time_steps
 
-    DEC_mask_list = []
+    DEC_array_mask_list = []
     for i in range(total_time_steps - window_size + 1):
         vh_stack_past_index = list(np.arange(i, i + half_window))
         vv_stack_past_index = list(np.arange(vv_vh_bandcount + i, vv_vh_bandcount + i + half_window))
-        # inspect(data=[vh_stack_past_index], message="vh_stack_past_index")
-        # inspect(data=[vv_stack_past_index], message="vv_stack_past_index")
+        inspect(data=[vh_stack_past_index], message="vh_stack_past_index")
+        inspect(data=[vv_stack_past_index], message="vv_stack_past_index")
 
-        vh_stack_past = numpy_array[:, :, vh_stack_past_index]
-        vv_stack_past = numpy_array[:, :, vv_stack_past_index]
+        vh_stack_past = numpy_array[vh_stack_past_index]
+        vv_stack_past = numpy_array[vv_stack_past_index]
 
         # Subtract the corresponding VH and VV bands
-        vh_vv_ratio = vh_stack_past - vv_stack_past
+        vh_vv_ratio = vh_stack_past - vv_stack_past  # Shape (x, y, 5)
 
         # Apply min-max scaling to VH, VV, and VH/VV ratio
         vh = cutoff_minmax_scale(vh_stack_past)
@@ -189,28 +183,29 @@ def apply_model(input_xr: xr.DataArray) -> xr.DataArray:
 
         # Stack VH, VV, and VH/VV ratio along a new axis to get shape (5, x, y, 3)
         result = np.stack((vh, vv, vh_vv_ratio), axis=-1)  # Shape (x, y, 5, 3)
-        result = result[:256, :256, :]
+        # result = result[:256, :256, :]
 
         # Transpose to get the desired shape (5, x, y, 3)
-        input_np = np.transpose(result, (2, 0, 1, 3))
+        # input_np = np.transpose(result, (2, 0, 1, 3))
 
-        input_np = np.transpose(input_np, (1, 2, 0, 3)).reshape(256, 256, 15)
+        inspect(data=[result.shape], message="input np before reshape")
+        input_np = np.transpose(result, (1, 2, 0, 3)).reshape(256, 256, 15)
         input_np = input_np[np.newaxis, ...]
 
+        # input_np, input_shape = preprocess_input(input_xr, ort_session)
         ## Step 3: Perform inference
         predicted_labels = run_inference(input_np, ort_session)
 
         ## Step 4: Postprocess the output
-        predicted_labels = postprocess_output(predicted_labels, input_shape)
+        predicted_labels = postprocess_output(predicted_labels)
 
-        DEC_mask_list.append(predicted_labels)
+        DEC_array_mask_list.append(predicted_labels)
 
-    DEC_mask_array = np.stack(DEC_mask_list, axis=0)
-    # Step 5: Create the output xarray
-    input_xr = input_xr.transpose("bands","y", "x")
 
-    # inspect(data= [DEC_mask_array.shape], message="DEC_mask_array")
-    return create_output_xarray(DEC_mask_array, input_xr)
+    predicted_labels_array = np.stack(DEC_array_mask_list, axis=0)
+    inspect(data=[predicted_labels_array.shape], message="predicted_labels_array shape")
+    ## Step 5: Create the output xarray
+    return create_output_xarray(predicted_labels_array, input_xr)
 
 
 def apply_datacube(cube: xr.DataArray, context: Dict) -> xr.DataArray:

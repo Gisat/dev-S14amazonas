@@ -24,10 +24,10 @@ def copy_to_s3(bucket_name, s3_path, local_path, config_path):
 
 
 # Example usage:
-bucket_name = "supportivedata"
-s3_path = f"mask"
+bucket_name = "deforestation"
+s3_path = f"sarbackscatter"
 
-local_path = "/mnt/hddarchive.nfs/amazonas_dir/work_dir/forest_elevation_mask/mask"
+local_path = "/mnt/hddarchive.nfs/amazonas_dir/work_dir/sarbackscatter"
 config_path = "/mnt/ssdarchive.nfs/userdoc/rclone.conf"
 
 copy_to_s3(bucket_name, s3_path, local_path, config_path)

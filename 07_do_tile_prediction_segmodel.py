@@ -4,18 +4,19 @@ import subprocess
 import geopandas as gpd
 import json
 from osgeo import gdal
-from gdalconst import GDT_Byte, GDT_Float32
+from osgeo.gdalconst import GDT_Byte, GDT_Float32
 import numpy as np
 from datetime import datetime, timedelta, date
 import math
 from tondortools.tool import read_raster_info, save_raster, mosaic_tifs, save_raster_template
-import tensorflow as tf
+# import tensorflow as tf
 
 import multiprocessing
 from multiprocessing import Pool
 CPU_COUNT = int(np.floor(multiprocessing.cpu_count()*.80))
 
 tiles = ['18LVQ', '18LVR', '18LWR', '18NXG', '18NXH', '18NYH', '20LLP', '20LLQ', '20LMP', '20LMQ', '20NQF', '20NQG', '20NRG', '21LYG', '21LYH', '22MBT', '22MGB']
+tiles = ['21LYG']
 
 year_from = 2017
 year_to = 2018
@@ -201,11 +202,11 @@ for tile_item in tiles:
     output_folder_multiband_mosaic_from_2020_tile = output_folder_multiband_mosaic_from_2020.joinpath(tile_item)
 
     mosaic_filepaths = []
-    orbit_directions = os.listdir(output_folder_multiband_mosaic_tile)
+    orbit_directions = os.listdir(output_folder_multiband_mosaic_from_2020_tile)
     for orbit_direction_item in orbit_directions:
         if orbit_direction_item not in ['ascending', 'descending']:continue
 
-        output_folder_multiband_mosaic_tile_orbit = output_folder_multiband_mosaic_tile.joinpath(orbit_direction_item)
+        output_folder_multiband_mosaic_tile_orbit = output_folder_multiband_mosaic_from_2020_tile.joinpath(orbit_direction_item)
         mosaic_files = os.listdir(output_folder_multiband_mosaic_tile_orbit)
         for mosaic_file_item in sorted(mosaic_files):
             mosaic_filepaths.append(Path(output_folder_multiband_mosaic_tile_orbit).joinpath(mosaic_file_item))
