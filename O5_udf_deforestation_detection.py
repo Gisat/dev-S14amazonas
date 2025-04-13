@@ -74,7 +74,7 @@ def apply_threshold(stat_array, pol_item, DEC_array_threshold,
     if DEBUG:
         return DEC_array_threshold, stat_array_copy, stat_array.astype(int)
     else:
-        return DEC_array_threshold, None, None
+        return DEC_array_threshold, None, stat_array.astype(int)
 
 
 def calculate_lsfit_r(vv_vh_r, vv_vh_bandcount):

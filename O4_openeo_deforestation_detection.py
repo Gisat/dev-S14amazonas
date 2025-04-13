@@ -80,6 +80,7 @@ def changedetection_backscatter(west, east, north, south, crs_epsg, tile_name, s
 
 
     url = f"https://s3.waw3-1.cloudferro.com/swift/v1/deforestation/sarbackscatter/stac_dir/{tile_name}/{tile_name}_backscatter_catalog.json"
+    # url = "https://s3.waw3-1.cloudferro.com/swift/v1/gisat-archive/SAR/21LYG/21LYG_catalog.json"
     temporal_extent = [start_time, end_time]
 
     temporal_extents, master_temporal_extent = get_temporalextents_mastertemporalextent(temporal_extent[0],
@@ -157,7 +158,7 @@ def changedetection_backscatter(west, east, north, south, crs_epsg, tile_name, s
         process=udf,
         dimension="bands"
     )
-    target = [band + "_t" + str(i+1).zfill(2) for band in ["MCD", "MCD_threshold", "VV_pmin", "VH_pmin"] for i in range(number_of_timewindows)]
+    target = [band + "_t" + str(i+1).zfill(2) for band in ["MCD", "MCDthreshold", "VVpmin", "VHpmin"] for i in range(number_of_timewindows)]
     datacube_udf = datacube_udf.rename_labels(dimension="bands", target=target)
 
     udf_ai = openeo.UDF.from_file(Path(__file__).parent.resolve() / "O6_udf_amazonas_ai.py")
@@ -193,13 +194,10 @@ def changedetection_backscatter(west, east, north, south, crs_epsg, tile_name, s
 
 
     job_options = {
-        "executor-memory": "4G",
-        "executor-python-memory": "4G", # check this
-        "executor-memoryOverhead": "2G",
-        "driver-memory": "4G",
-        "driver-memoryOverhead": "2G",
+        "executor-memory": "5G",
+        "python-memory": "3500m", # check this
         "soft-errors": True,
-        "max_executors": 10,
+        "max-executors": 10,
         "udf-dependency-archives": [
         f"{DEPENDENCY_URL}#onnx_deps",
         f"{MODEL_URL}#onnx_models"]
@@ -208,7 +206,7 @@ def changedetection_backscatter(west, east, north, south, crs_epsg, tile_name, s
     change_detection = change_detection.apply(process=eop.int)
     detection_first_date = temporal_extents[5][0]
     detection_last_date = temporal_extents[number_of_timewindows + 5][0]
-    save_options = {"filename_prefix": f"DEC_{tile_name}_{detection_first_date}_{detection_last_date}", "dtype": "int16"}
+    save_options = {"filename_prefix": f"DEC_{tile_name}_{detection_first_date}_{detection_last_date}", "dtype": "int16", "separate_asset_per_band": True}
     change_detection = change_detection.save_result(options=save_options)
     return change_detection.create_job(title=f"{job_prefix} - {tile_name} - {master_temporal_extent[0]} - {master_temporal_extent[1]}",
                                     job_options=job_options)
@@ -245,16 +243,17 @@ def main():
     # tile_name = "21LYGsmallbuffer"
 
     # satellite patch 21LYG
-    # west, south, east, north = (-54.8225145935671563, -12.1968997799477616, -54.6903701720671549, -12.0434982956194023)
-    # tile_name = "21LYGsatpatch"
+    west, south, east, north = (-54.8225145935671563, -12.1968997799477616, -54.6903701720671549, -12.0434982956194023)
+    tile_name = "21LYGsatpatch"
+    crs = 4326
 
     # west, south, east, north = (-55.1638792009850079,-12.4940553106659173, -54.2122532979983021,-11.7558354090227191)
     # tile_name = "21LYGside"
     # crs = 4326
 
-    west, south, east, north =  (499960.0000000000000000,8990040.0000000000000000, 610080.0000000000000000,9100140.0000000000000000)
-    tile_name = "20LNR"
-    crs = 32720
+    # west, south, east, north =  (499960.0000000000000000,8990040.0000000000000000, 610080.0000000000000000,9100140.0000000000000000)
+    # tile_name = "20LNR"
+    # crs = 32720
 
     # case 1
     # start_time_master = datetime.datetime.strptime("2021-01-04", "%Y-%m-%d")
@@ -275,14 +274,15 @@ def main():
     #     end_time_master += timedelta(days=12)
 
     # case 2
-    start_time = "2023-05-03"
-    end_time =  "2023-05-27"
+    start_time = "2021-05-03"
+    end_time =  "2021-05-15"
 
     temporal_extents, padded_start_time, padded_end_time = get_extended_temporalextents_with_padding(start_time, end_time)
     job = changedetection_backscatter(west, east, north, south, crs, tile_name, padded_start_time, padded_end_time)
     job.start_and_wait()
     results = job.get_results()
-    results.download_file(f"DEC_{tile_name}_{start_time}_{end_time}.tiff")
+    # results.download_file(f"DEC_{tile_name}_{start_time}_{end_time}.tiff")
+    results.download_files("/mnt/hddarchive.nfs/amazonas_dir/work_dir/tmp")
 
 if __name__ == "__main__":
     main()

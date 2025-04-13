@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+import subprocess
 
 reference_date = datetime(2021, 12, 16)
 
@@ -110,5 +111,21 @@ def get_extended_temporalextents_with_padding(start, end, pad_before=5, pad_afte
 
 
 ####
+def extract_band(src_filepath, dst_filepath, band_number, datatype="Float32"):
+    command = [
+        "gdal_translate",
+        "-b", str(band_number),
+        "-ot", datatype,
+        "-co", "TILED=YES",
+        "-co", "COMPRESS=LZW",
+        "-co", "PREDICTOR=2",
+        str(src_filepath),
+        str(dst_filepath)
+    ]
 
+    try:
+        subprocess.run(command, check=True)
+        print(f"Band {band_number} extracted to {dst_filepath}")
+    except subprocess.CalledProcessError as e:
+        print("Error running gdal_translate:", e)
 

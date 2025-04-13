@@ -43,26 +43,29 @@ os.makedirs(stac_dir_root, exist_ok=True)
 
 bucket_name = "deforestation"
 
-tile_name = ["20LNR"]
-collection_name = None
+tile_name = sorted(os.listdir(input_root_dir))
+
+
 
 ##
 component_for_stac_creation = "backscatter"
-if len(tile_name) == 1:
-    collection_name = f"{tile_name[0]}_backscatter"
-else:
-    if collection_name is None:
-        raise Exception(f"{collection_name} is None")
 
 
 number_bands = 2
 bands= ["VV" , "VH"]
 
 for tile_name_item in tile_name:
+
+    print(f" -- {tile_name_item} --")
+    if tile_name_item == "stac_dir": continue
+    collection_name = f"{tile_name_item}_backscatter"
     ##############################################
     #### PREP FROM INPUTS ###
     # Create the output directory specific to the STAC collection
     stac_dir = stac_dir_root.joinpath(tile_name_item)
+    if stac_dir.exists():
+        print(f" stac_dir exists-- {tile_name_item} --")
+        continue
     os.makedirs(stac_dir, exist_ok=True)
 
     # Base URL for accessing files from the S3 bucket
@@ -124,10 +127,10 @@ for tile_name_item in tile_name:
                 datetime=datetime.strptime(month, "%Y-%m-%d"),
                 properties=properties
             )
-            stac_extensions=[
+            item.stac_extensions=[
                 "https://stac-extensions.github.io/eo/v1.1.0/schema.json",
                 "https://stac-extensions.github.io/projection/v1.1.0/schema.json",
-            ],
+            ]
             # Add polarization band information
             pystac_bands = [
                 Band.create(

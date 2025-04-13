@@ -13,14 +13,13 @@ from openeo.extra.job_management import create_job_db
 from jobmanagers.jobmanager_utils.jobmanager_utils import ClassificationJobManager
 from O7_openeo_backscatter import sarbackscatter_jm_wrapper, get_monthyear_periods_joblist
 
-
 ## INPUTS
-NUM_PROCESS = 4
+NUM_PROCESS = 10
 past_runs = 0
-RUN_NAME = "prior0and2"
-priority = None
+RUN_NAME = "priori12"
+priority = 12
 input_df_path = Path("/mnt/hddarchive.nfs/amazonas_dir/work_dir/S2_Tiles_MCD_AI.gpkg")
-work_dir = Path("/mnt/hddarchive.nfs/amazonas_dir/work_dir/backscatter_jobmanagement_priori0and2from20211215")
+work_dir = Path(f"/mnt/hddarchive.nfs/amazonas_dir/work_dir/backscatter_jobmanagement_{RUN_NAME}")
 os.makedirs(work_dir, exist_ok=True)
 
 ####
@@ -28,10 +27,10 @@ assert input_df_path.exists(), f"Input file {input_df_path} does not exist"
 input_df = gpd.read_file(input_df_path)
 
 # if priority is not None:
-input_df = input_df[(input_df["Priority"] == 2) | (input_df["Priority"] == 0)]
-# input_df = input_df[input_df["Name"] == "20LNR"]
+input_df = input_df[(input_df["Priority"] == priority)]
+# input_df = input_df[input_df["Name"] == RUN_NAME]
 
-month_years = get_monthyear_periods_joblist(20211215, 20250329, 20)
+month_years = get_monthyear_periods_joblist(20201102, 20250329, 15)
 # months_years = months_years[::-1]
 job_df = pd.concat([input_df.assign(startdate=months_year_item[0], enddate = months_year_item[1]) for months_year_item in month_years], ignore_index=True)
 
