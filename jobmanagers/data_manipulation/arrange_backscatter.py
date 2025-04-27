@@ -15,7 +15,7 @@ reference_endate = datetime(2025, 3, 29)
 CHECK_MISSING_BAC = False
 
 # Load the CSV file
-file_path = Path("/mnt/hddarchive.nfs/amazonas_dir/work_dir/backscatter_jobmanagement_missingsarbackscatter3/job_database-missingsarbackscatter3.csv")
+file_path = Path("/mnt/hddarchive.nfs/amazonas_dir/work_dir/backscatter_jobmanagement_priori15/job_database-priori15.csv")
 sarbackscatter_folder = Path("/mnt/hddarchive.nfs/amazonas_dir/work_dir/sarbackscatter")
 
 df = pd.read_csv(file_path)
@@ -76,6 +76,5 @@ print("------")
 print(missing_tifs)
 print("------")
 print(skipped_tifs)
-
 
 

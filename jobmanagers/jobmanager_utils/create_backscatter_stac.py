@@ -55,7 +55,6 @@ number_bands = 2
 bands= ["VV" , "VH"]
 
 for tile_name_item in tile_name:
-
     print(f" -- {tile_name_item} --")
     if tile_name_item == "stac_dir": continue
     collection_name = f"{tile_name_item}_backscatter"

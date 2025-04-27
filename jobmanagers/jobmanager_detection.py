@@ -12,6 +12,8 @@ import geopandas as gpd
 from Oa_openeo_utils import get_temporalextents_mastertemporalextent, get_extended_temporalextents_with_padding, get_monthyear_periods_joblist
 from O4_openeo_deforestation_detection import changedetection_jm_wrapper
 
+tile_list = None
+
 # tile_list= ['16PFA', '18MYS', '22NDH', '19LCL', '19NEJ', '23MLS', '18PUQ', '17PPL', '22NEF', '22NCJ', '16PHT', '22NDK', '18NXH', '19LDL', '22MGT', '19LEK', '22NDJ', '16QBE', '18LZR', '22NCG', '19LEL', '22MDE', '19NFJ', '22NCK', '19LDK', '22MDU', '22KCG', '19LBL']
 # RUN_NAME = "batch3"
 
@@ -33,8 +35,8 @@ from O4_openeo_deforestation_detection import changedetection_jm_wrapper
 # RUN_NAME = "batchpirori12"
 
 
-tile_list = ['20MRA', '20LMQ', '20LPQ', '20MQS', '21MZN', '21MUM', '22LFQ', '22MBU', '21LXF', '21MUS', '16PGS', '22KCE', '20MPS', '21NTA', '20MPD', '21MWR', '21MXQ', '20MND', '22MBA', '19MBM', 'stac_dir', '21MXU', '16PHA', '20NQH', '20MRE', '20NPF', '22LEM', '21MYS', '21MVN', '20MPT', '16PFB']
-RUN_NAME = "batchpriori11"
+# tile_list = ['20MRA', '20LMQ', '20LPQ', '20MQS', '21MZN', '21MUM', '22LFQ', '22MBU', '21LXF', '21MUS', '16PGS', '22KCE', '20MPS', '21NTA', '20MPD', '21MWR', '21MXQ', '20MND', '22MBA', '19MBM', 'stac_dir', '21MXU', '16PHA', '20NQH', '20MRE', '20NPF', '22LEM', '21MYS', '21MVN', '20MPT', '16PFB']
+# RUN_NAME = "batchpriori11"
 
 
 # tile_list =  ['15QYU', '15QYV', '20LLQ', '20LLR', '20MQA', '20MQB', '20NPH', '20NPJ', '21LWF', '21LWG', '21MWN', '21MWP', '21MXN', '21MXP', '22KHB', '22KHC', '22LBP', '22LEP', '22MBB', '22MBE', '22MCB', '22MCU']
@@ -47,13 +49,13 @@ RUN_NAME = "batchpriori11"
 # RUN_NAME = "batch1"
 
 
-print(f"final list to submit {tile_list}")
 
+RUN_NAME = "batchpriori14"
 ## INPUTS
 NUM_PROCESS = 10
 past_runs = 0
 # RUN_NAME =  "detectbatch1" #"poc20230503-20240825"
-priority = None
+priority = 14
 input_df_path = Path("/mnt/hddarchive.nfs/amazonas_dir/work_dir/S2_Tiles_MCD_AI.gpkg")
 work_dir = Path(f"/mnt/hddarchive.nfs/amazonas_dir/work_dir/detection_jobmanagement_{RUN_NAME}")
 os.makedirs(work_dir, exist_ok=True)

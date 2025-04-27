@@ -100,7 +100,7 @@ def process_directory(root_dir, tile_name):
 
 
 # Load the CSV file
-file_path = Path("/mnt/hddarchive.nfs/amazonas_dir/work_dir/detection_jobmanagement_batchpirori12/job_database-batchpirori12.csv")
+file_path = Path("/mnt/hddarchive.nfs/amazonas_dir/work_dir/detection_jobmanagement_batchpriori11/job_database-batchpriori11.csv")
 log_folder = Path("/mnt/hddarchive.nfs/amazonas_dir/work_dir/log_folder")
 detection_jobmanagement_folder = file_path.parent
 changedetection_folder = Path("/mnt/hddarchive.nfs/amazonas_dir/work_dir/changedetection_raw")

@@ -8,7 +8,8 @@ from scipy.ndimage import binary_dilation
 from tondortools.tool import read_raster_info, reproject_multibandraster_toextent, raster2array, save_raster_template
 import numpy as np
 from osgeo.gdal import GDT_Byte
-from scipy.ndimage import binary_erosion
+from scipy.ndimage import binary_erosion, binary_dilation, label, binary_opening
+from osgeo import gdal
 
 ELEVATION_MAX = 1800
 ELEVATION_MIN = 40
@@ -32,6 +33,17 @@ def find_ai_files_in_time_window(ai_warpeddir_date_dict, datetime_list_item, tim
             files_list.append(ai_warpeddir_item_path["AIMCD"])
 
     return files_list
+
+
+def set_colormap(input_path):
+    # Define a colormap dictionary {value: (R, G, B, A)}
+    colormap = {
+        1: (255, 0, 0, 255),  # Red
+    }
+
+    # Open the raster file in read/write mode
+    with rasterio.open(str(input_path), 'r+') as src:
+        src.write_colormap(1, colormap)  # Apply colormap to the first band
 
 
 def find_cummulative_aidetection(ai_files_list):
@@ -73,7 +85,28 @@ def create_ai_mcd_merged_detection(raster_array_1, raster_array_2):
 
     return final_raster
 
+# Apply GDAL Sieve filter to remove patches smaller than 10 pixels
+def apply_sieve(input_path, output_path, threshold=10, connectivity=8):
+    src_ds = gdal.Open(str(input_path), gdal.GA_ReadOnly)
+    drv = gdal.GetDriverByName('GTiff')
 
+    creation_options = [
+        "TILED=YES",         # Enables internal tiling (good for performance)
+        "COMPRESS=LZW",      # LZW compression reduces file size
+        "PREDICTOR=2"        # Improves compression for integer data
+    ]
+    out_ds = drv.CreateCopy(
+        str(output_path),
+        src_ds,
+        strict=0,
+        options=creation_options
+    )
+    # GDAL SieveFilter modifies in-place
+    band = out_ds.GetRasterBand(1)
+    gdal.SieveFilter(band, None, band, threshold, connectivity)
+
+    out_ds.FlushCache()
+    out_ds = None
 
 def main():
 
@@ -247,17 +280,59 @@ def main():
             save_raster_template(tile_forest_elevation_mask_path, master_detection_masked_path,
                                  master_detection_nomask_array, GDT_Int16, 0)
 
+        master_detection_filtered_masked_path = work_dir.joinpath(f"{tile_list_item}_masked_combined_filtered_detection.tif")
+        if not master_detection_filtered_masked_path.exists():
+            tile_forest_elevation_mask = raster2array(tile_forest_elevation_mask_path)
+            tile_forest_elevation_mask[np.isnan(tile_forest_elevation_mask)] = 0
+            master_detection_mask_array = raster2array(master_detection_masked_path)
+            master_detection_mask_array[np.isnan(master_detection_mask_array)] = 0
 
+            # Step 1: Define forest boundary (where dilation != erosion)
+            forest_dil = binary_dilation(tile_forest_elevation_mask, structure=np.ones((3, 3)))
+            forest_ero = binary_erosion(tile_forest_elevation_mask, structure=np.ones((3, 3)))
+            forest_boundary = ((forest_dil != forest_ero) & (tile_forest_elevation_mask == 1)).astype(np.uint8)
+            # Step 2: Label all change patches
+            labeled_change, num = label(master_detection_mask_array)
+            # Step 3: Retain patches that touch the forest boundary
+            boundary_touching_labels = np.unique(labeled_change[forest_boundary == 1])
+            boundary_touching_labels = boundary_touching_labels[boundary_touching_labels != 0]
+            edge_changes = np.isin(labeled_change, boundary_touching_labels).astype(np.uint8)
+
+            inner_changes = master_detection_mask_array * master_detection_mask_array
+            # Apply binary opening to inner changes
+            opened_inner = binary_opening(inner_changes, structure=np.ones((2, 2))).astype(np.uint8)
+            # Label original inner changes
+            labeled_inner, num_labels = label(inner_changes)
+
+            # Find overlapping labels between original and opened result
+            overlapping_labels = np.unique(labeled_inner[opened_inner == 1])
+            overlapping_labels = overlapping_labels[overlapping_labels != 0]
+
+            # Retain only overlapping original patches
+            final_inner = np.isin(labeled_inner, overlapping_labels).astype(np.uint8)
+
+            # Combine edge patches and retained inner patches
+            final_changes = (edge_changes | final_inner).astype(np.uint8)
+
+            save_raster_template(tile_forest_elevation_mask_path, master_detection_filtered_masked_path,
+                                 final_changes, GDT_Byte, 0)
+
+
+        master_detection_filtered_sieved_masked_path = master_detection_filtered_masked_path.with_stem(f"{master_detection_filtered_masked_path.stem}_sieved")
+        if not master_detection_filtered_sieved_masked_path.exists():
+            apply_sieve(master_detection_filtered_masked_path, master_detection_filtered_sieved_masked_path)
+
+        archive_files.append(master_detection_filtered_sieved_masked_path)
         #####
         #####
         # APPLY MASK
         #####
         #####
-        valid_changes = raster2array(master_detection_masked_path)
+        valid_changes = raster2array(master_detection_filtered_sieved_masked_path)
         valid_changes[np.isnan(valid_changes)] = 0
         masked_mcd_ai_combined_dict = {}
 
-        work_dir_final_deforestation = work_dir.joinpath("deforestation_layers")
+        work_dir_final_deforestation = work_dir.joinpath("changedetection_layers")
         os.makedirs(work_dir_final_deforestation, exist_ok=True)
         for datetime_index, mcd_ai_path in mcd_ai_combined_dit.items():
 
@@ -269,11 +344,40 @@ def main():
 
                 save_raster_template(mcd_ai_path, final_deforestation_tile_layer_path, mcd_ai_array,
                                      GDT_Byte, 0)
+                set_colormap(final_deforestation_tile_layer_path)
             archive_files.append(final_deforestation_tile_layer_path)
 
+        #####
+        #####
+        # CREATE PROGRESSIVE FORESTCHANGE
+        #####
+        #####
+        # Sort the dictionary by datetime keys in ascending order
+        sorted_dict = dict(sorted(mcd_ai_combined_dit.items()))
+
+        work_dir_final_deforestation = work_dir.joinpath("deforestation_layers")
+        os.makedirs(work_dir_final_deforestation, exist_ok=True)
+        for datetime_index, mcd_ai_path in sorted_dict.items():
+            final_deforestation_tile_layer_path = work_dir_final_deforestation.joinpath(
+                mcd_ai_path.name.replace("MCDAICOMBINED", "TREECOVERCHANGE"))
+            mcd_ai_array = raster2array(mcd_ai_path)
+            mcd_ai_array[np.isnan(mcd_ai_array)] = 0
+
+            mcd_ai_current_deforestation_removed = (mcd_ai_array.astype(int)) & (valid_changes.astype(int))
+            valid_changes = mcd_ai_current_deforestation_removed + valid_changes
+            save_raster_template(mcd_ai_path, final_deforestation_tile_layer_path, mcd_ai_current_deforestation_removed,
+                                 GDT_Byte, 0)
+            set_colormap(final_deforestation_tile_layer_path)
+            archive_files.append(final_deforestation_tile_layer_path)
+
+        output_dir_tile_changedetection = output_dir_tile.joinpath("changedetection")
+        os.makedirs(output_dir_tile_changedetection, exist_ok=True)
         for archive_file_item in archive_files:
-            output_tif_path = output_dir_tile.joinpath(archive_file_item.name)
-            if not output_tif_path.exists():
+            if "CHANGEDETECTION" in archive_file_item.name:
+                output_tif_path = output_dir_tile_changedetection.joinpath(archive_file_item.name)
+                shutil.copy(archive_file_item, output_tif_path)
+            else:
+                output_tif_path = output_dir_tile.joinpath(archive_file_item.name)
                 shutil.copy(archive_file_item, output_tif_path)
 
 

@@ -16,8 +16,8 @@ from O7_openeo_backscatter import sarbackscatter_jm_wrapper, get_monthyear_perio
 ## INPUTS
 NUM_PROCESS = 10
 past_runs = 0
-RUN_NAME = "priori12"
-priority = 12
+RUN_NAME = "priori15"
+priority = 15
 input_df_path = Path("/mnt/hddarchive.nfs/amazonas_dir/work_dir/S2_Tiles_MCD_AI.gpkg")
 work_dir = Path(f"/mnt/hddarchive.nfs/amazonas_dir/work_dir/backscatter_jobmanagement_{RUN_NAME}")
 os.makedirs(work_dir, exist_ok=True)

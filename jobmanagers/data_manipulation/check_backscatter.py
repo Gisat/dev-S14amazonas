@@ -42,7 +42,7 @@ for tile_list_item in tile_list:
     check_ok_file = sarbackscatter_folder.joinpath(tile_list_item, "tile.check.ok")
     if check_ok_file.exists():
         print(f"Skipping {tile_list_item} as check.ok exists.")
-        continue
+        # continue
 
     sarbackscatter_tile_folder = sarbackscatter_folder.joinpath(tile_list_item)
     sarbackscatter_tile_files = os.listdir(sarbackscatter_tile_folder)
@@ -70,6 +70,3 @@ for tile_list_item in tile_list:
             f.write('Checked and complete.\n')
 print("----")
 print(missing_files)
-
-
-

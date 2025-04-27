@@ -22,11 +22,17 @@ def copy_to_s3(bucket_name, s3_path, local_path, config_path):
         print(f"Upload completed for {local_path}")
 
 # Setup paths
+
+
+data_to_backup = "changedetection_raw" #"sarbackscatter"
 bucket_name = "deforestation"
-base_local_path = Path("/mnt/hddarchive.nfs/amazonas_dir/work_dir/sarbackscatter")
+
+
+
+base_local_path = Path(f"/mnt/hddarchive.nfs/amazonas_dir/work_dir/{data_to_backup}")
 stac_base_path = base_local_path / "stac_dir"
 config_path = "/mnt/ssdarchive.nfs/userdoc/rclone.conf"
-s3_base_path = "sarbackscatter"
+s3_base_path = f"{data_to_backup}"
 
 
 # tile_list = ['15QYU', '15QYV', '20LLQ', '20LLR', '20MQA', '20MQB', '20NPH', '20NPJ', '21LWF', '21LWG', '21MWN', '21MWP', '21MXN', '21MXP', '22KHB', '22KHC', '22LBP', '22LEP', '22MBB', '22MBE', '22MCB', '22MCU']

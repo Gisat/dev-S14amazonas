@@ -2,7 +2,7 @@ import pandas as pd
 from pathlib import Path
 from O7_openeo_backscatter import get_temporalextents_mastertemporalextent
 
-file_path = '/mnt/hddarchive.nfs/amazonas_dir/work_dir/detection_jobmanagement_batchprocess8/job_database-batchprocess8.csv'
+file_path = '/mnt/hddarchive.nfs/amazonas_dir/work_dir/backscatter_jobmanagement_priori14/job_database-priori14.csv'
 BACKSCATTER = False
 jobmanager_folder = Path(file_path).parent
 
