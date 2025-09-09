@@ -100,10 +100,11 @@ def process_directory(root_dir, tile_name):
 
 
 # Load the CSV file
-file_path = Path("/mnt/hddarchive.nfs/amazonas_dir/work_dir/detection_jobmanagement_batchpriori11/job_database-batchpriori11.csv")
+file_path = Path("/mnt/hddarchive.nfs/amazonas_dir/work_dir/changedetection_jobmanagement_missingchangedetection256/job_database-missingchangedetection256.csv")
 log_folder = Path("/mnt/hddarchive.nfs/amazonas_dir/work_dir/log_folder")
 detection_jobmanagement_folder = file_path.parent
 changedetection_folder = Path("/mnt/hddarchive.nfs/amazonas_dir/work_dir/changedetection_raw")
+os.makedirs(changedetection_folder, exist_ok=True)
 
 def main():
     df = pd.read_csv(file_path)

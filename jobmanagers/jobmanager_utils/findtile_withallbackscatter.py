@@ -18,7 +18,7 @@ tile_list = input_df["Name"].unique()
 
 missing_files = []
 for tile_list_item in tile_list:
-    if tile_list_item == "stac_dir": continue
+    if not tile_list_item == "21LYG": continue
     temporal_extents, master_temporal_extent = get_temporalextents_mastertemporalextent("2020-11-02",
                                                                                         "2025-03-29")
     print(f" -- {tile_list_item} --")

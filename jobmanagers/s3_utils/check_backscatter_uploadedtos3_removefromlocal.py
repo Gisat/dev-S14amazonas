@@ -63,8 +63,7 @@ for tile in sorted(tile_list):
     # Decision
     if backscatter_ok:
         print(f"✓ {tile}: All files verified in S3.")
-        remove_local_path(local_tile_path)
+        #remove_local_path(local_tile_path)
         # remove_local_path(local_stac_tile_path)
-        print()
     else:
         print(f"✗ {tile}: Verification failed or incomplete, skipping deletion.\n")

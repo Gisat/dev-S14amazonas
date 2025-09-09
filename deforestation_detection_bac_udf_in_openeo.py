@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 import openeo.processes as eop
 import openeo
 from pathlib import Path
+from openeo.api.process import Parameter
 
 DEBUG= False
 

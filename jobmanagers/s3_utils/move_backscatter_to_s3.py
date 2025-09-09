@@ -24,7 +24,7 @@ def copy_to_s3(bucket_name, s3_path, local_path, config_path):
 # Setup paths
 
 
-data_to_backup = "changedetection_raw" #"sarbackscatter"
+data_to_backup = "sarbackscatter" #"changedetection_raw" #"sarbackscatter"
 bucket_name = "deforestation"
 
 
@@ -34,6 +34,10 @@ stac_base_path = base_local_path / "stac_dir"
 config_path = "/mnt/ssdarchive.nfs/userdoc/rclone.conf"
 s3_base_path = f"{data_to_backup}"
 
+s3_stac_path = "sarbackscatter/stac_dir"
+local_path = "/mnt/hddarchive.nfs/amazonas_dir/work_dir/sarbackscatter/stac_dir"
+copy_to_s3(bucket_name, s3_stac_path, local_path, config_path)
+exit(0)
 
 # tile_list = ['15QYU', '15QYV', '20LLQ', '20LLR', '20MQA', '20MQB', '20NPH', '20NPJ', '21LWF', '21LWG', '21MWN', '21MWP', '21MXN', '21MXP', '22KHB', '22KHC', '22LBP', '22LEP', '22MBB', '22MBE', '22MCB', '22MCU']
 # Loop through tiles (ignoring 'stac_dir' folder itself)

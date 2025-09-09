@@ -5,7 +5,7 @@
       <sourceFolder url="file://$MODULE_DIR$/../EUGW/LC_CLASSIFICATION" isTestSource="false" />
     </content>
     <content url="file://$MODULE_DIR$" />
-    <orderEntry type="jdk" jdkName="gisat38" jdkType="Python SDK" />
+    <orderEntry type="jdk" jdkName="eozarr" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
   </component>
 </module>

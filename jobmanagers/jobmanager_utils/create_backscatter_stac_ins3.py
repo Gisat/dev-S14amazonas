@@ -18,7 +18,7 @@ bucket_name = "deforestation"
 base_s3_path = "sarbackscatter"
 s3_url_base = f"https://s3.waw3-1.cloudferro.com/swift/v1/{bucket_name}"
 rclone_config = "/mnt/ssdarchive.nfs/userdoc/rclone.conf"
-local_stac_dir = Path("/mnt/hddarchive.nfs/amazonas_dir/work_dir/stac_dir")
+local_stac_dir = Path("/mnt/hddarchive.nfs/amazonas_dir/work_dir/sarbackscatter/stac_dir")
 os.makedirs(local_stac_dir, exist_ok=True)
 
 bands = ["VV", "VH"]

@@ -10,9 +10,11 @@ import numpy as np
 from osgeo.gdal import GDT_Byte
 from scipy.ndimage import binary_erosion, binary_dilation, label, binary_opening
 from osgeo import gdal
+import subprocess
 
 ELEVATION_MAX = 1800
 ELEVATION_MIN = 40
+LARGE_SIEVE = 50000
 
 forest_tifpath = Path("/mnt/hddarchive.nfs/amazonas_dir/work_dir/forest_elevation_mask/mask/forest_mask_2020.tif")
 elevation_tifpath = Path("/mnt/hddarchive.nfs/amazonas_dir/work_dir/srtmlayer.tif")
@@ -20,8 +22,10 @@ change_detection_root_folder = Path("/mnt/hddarchive.nfs/amazonas_dir/work_dir/c
 root_work_dir = Path("/mnt/hddarchive.nfs/amazonas_dir/work_dir/changedetection_processing")
 output_dir = Path("/mnt/hddarchive.nfs/amazonas_dir/work_dir/output")
 
-# tile_list = ["20LNR"]
-tile_list = sorted(os.listdir(change_detection_root_folder))
+
+# tile_list = sorted(os.listdir(change_detection_root_folder))
+tile_list = ["22NEG", "21LXF", "22MCT", "21LXG"]
+
 
 def find_ai_files_in_time_window(ai_warpeddir_date_dict, datetime_list_item, time_window = 24):
     datestr_datetime_up = datetime_list_item + timedelta(days=time_window)
@@ -87,6 +91,7 @@ def create_ai_mcd_merged_detection(raster_array_1, raster_array_2):
 
 # Apply GDAL Sieve filter to remove patches smaller than 10 pixels
 def apply_sieve(input_path, output_path, threshold=10, connectivity=8):
+    output_path_small_sieve = str(Path(output_path).with_suffix('.small_sieve.tif'))
     src_ds = gdal.Open(str(input_path), gdal.GA_ReadOnly)
     drv = gdal.GetDriverByName('GTiff')
 
@@ -96,7 +101,7 @@ def apply_sieve(input_path, output_path, threshold=10, connectivity=8):
         "PREDICTOR=2"        # Improves compression for integer data
     ]
     out_ds = drv.CreateCopy(
-        str(output_path),
+        str(output_path_small_sieve),
         src_ds,
         strict=0,
         options=creation_options
@@ -108,10 +113,29 @@ def apply_sieve(input_path, output_path, threshold=10, connectivity=8):
     out_ds.FlushCache()
     out_ds = None
 
+    output_path_large_sieve = str(Path(output_path).with_suffix('.large_sieve.tif'))
+    cmd_sieve = ["gdal_sieve.py", "-st", "{}".format(50000),
+                 "-8", "-nomask", "-of", "GTiff",
+                 "{}".format(str(output_path_small_sieve)),
+                 "{}".format(output_path_large_sieve)]
+    cmd_output = subprocess.run(cmd_sieve, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    print("exit code {} --> {}".format(cmd_output.returncode, cmd_sieve))
+
+    CHANGE_VALIDITY = raster2array(output_path_small_sieve)
+    CHANGE_VALIDITY_largesieve = raster2array(output_path_large_sieve)
+    CHANGE_VALIDITY[CHANGE_VALIDITY_largesieve == 1] = 0
+    save_raster_template(input_path, output_path, CHANGE_VALIDITY, GDT_Byte, 0)
+    if os.path.exists(output_path_large_sieve):
+        os.remove(output_path_large_sieve)
+    if os.path.exists(output_path_small_sieve):
+        os.remove(output_path_small_sieve)
+
+
+
+
 def main():
 
     for tile_list_item in tile_list:
-        if not tile_list_item == "21LXG": continue
         print(f"-------------   {tile_list_item}   ---------------------------")
 
         output_dir_tile = output_dir.joinpath(tile_list_item)
@@ -156,6 +180,10 @@ def main():
                     reproject_multibandraster_toextent(elevation_tifpath, tile_elevation_path, epsg, pixel_width,
                                                        xmin, imagery_extent_box.bounds[2], imagery_extent_box.bounds[1], ymax, work_dir= work_dir, method ='near')
                 elevation_array = raster2array(tile_elevation_path)
+                if int(tile_list_item[0:2]) < 20:
+                    ELEVATION_MIN = 180
+                else:
+                    ELEVATION_MIN = 40
                 elevation_array[elevation_array < ELEVATION_MIN] = 0
                 elevation_array[elevation_array > ELEVATION_MAX] = 0
                 elevation_array[elevation_array != 0] = 1
@@ -318,9 +346,10 @@ def main():
                                  final_changes, GDT_Byte, 0)
 
 
-        master_detection_filtered_sieved_masked_path = master_detection_filtered_masked_path.with_stem(f"{master_detection_filtered_masked_path.stem}_sieved")
+        master_detection_filtered_sieved_masked_path = master_detection_filtered_masked_path.parent.joinpath(f"{master_detection_filtered_masked_path.stem}_sieved.tif")
+        master_detection_filtered_sieved_masked_path.unlink(missing_ok =True)
         if not master_detection_filtered_sieved_masked_path.exists():
-            apply_sieve(master_detection_filtered_masked_path, master_detection_filtered_sieved_masked_path)
+            apply_sieve(master_detection_filtered_masked_path, master_detection_filtered_sieved_masked_path, threshold=100)
 
         archive_files.append(master_detection_filtered_sieved_masked_path)
         #####
@@ -337,6 +366,7 @@ def main():
         for datetime_index, mcd_ai_path in mcd_ai_combined_dit.items():
 
             final_deforestation_tile_layer_path = work_dir_final_deforestation.joinpath(mcd_ai_path.name.replace("MCDAICOMBINED", "CHANGEDETECTION"))
+            final_deforestation_tile_layer_path.unlink(missing_ok=True)
             if not final_deforestation_tile_layer_path.exists():
                 mcd_ai_array = raster2array(mcd_ai_path)
                 mcd_ai_array[np.isnan(mcd_ai_array)] = 0

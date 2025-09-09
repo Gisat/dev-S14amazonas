@@ -36,13 +36,14 @@ tile_list = os.listdir(sarbackscatter_folder)
 
 missing_files = []
 for tile_list_item in tile_list:
-    if tile_list_item == "stac_dir": continue
+    if not tile_list_item == "21LYG": continue
     print(f" -- {tile_list_item} --")
 
     check_ok_file = sarbackscatter_folder.joinpath(tile_list_item, "tile.check.ok")
     if check_ok_file.exists():
-        print(f"Skipping {tile_list_item} as check.ok exists.")
+        # print(f"Skipping {tile_list_item} as check.ok exists.")
         # continue
+        pass
 
     sarbackscatter_tile_folder = sarbackscatter_folder.joinpath(tile_list_item)
     sarbackscatter_tile_files = os.listdir(sarbackscatter_tile_folder)

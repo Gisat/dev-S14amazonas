@@ -48,15 +48,17 @@ tile_list = None
 # tile_list = ['18MZS', '19PEK', '18NWF', '23MKQ', '22NCH', '22NCF', '18NWG', '17PNK', '22MHS', '22MGU', '19PFK', '22NEH', '23MLT', '22MEA']
 # RUN_NAME = "batch1"
 
+tile_list = None
+RUN_NAME = "batch256"
 
 
-RUN_NAME = "batchpriori14"
+# RUN_NAME = "batchpriori14"
 ## INPUTS
 NUM_PROCESS = 10
 past_runs = 0
 # RUN_NAME =  "detectbatch1" #"poc20230503-20240825"
-priority = 14
-input_df_path = Path("/mnt/hddarchive.nfs/amazonas_dir/work_dir/S2_Tiles_MCD_AI.gpkg")
+priority = 256
+input_df_path = Path("/mnt/hddarchive.nfs/amazonas_dir/work_dir/S2_Tiles_MCD_AI_cdtoprocess.gpkg")
 work_dir = Path(f"/mnt/hddarchive.nfs/amazonas_dir/work_dir/detection_jobmanagement_{RUN_NAME}")
 os.makedirs(work_dir, exist_ok=True)
 

@@ -79,8 +79,8 @@ all_tif_files = {}
 
 missing_files = []
 for folder in sorted(folders):
+    if folder == "stac_dir": continue
     tile_list_item = folder
-    if tile_list_item == "18MUE": continue
     folder_path = f"{full_bucket_path}/{folder}"
     tif_files = list_tif_files_in_folder(folder_path, config_path)
     if tif_files:

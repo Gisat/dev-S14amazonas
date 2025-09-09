@@ -18,8 +18,8 @@ from O7_openeo_backscatter import sarbackscatter_jm_wrapper, get_monthyear_perio
 
 NUM_PROCESS = 10
 # Assuming the provided list is stored in a variable
-date_ranges = [('16PGB', datetime.datetime(2021, 7, 24, 0, 0), datetime.datetime(2021, 8, 5, 0, 0)), ('16PGB', datetime.datetime(2021, 8, 5, 0, 0), datetime.datetime(2021, 8, 17, 0, 0)), ('16PGB', datetime.datetime(2021, 9, 10, 0, 0), datetime.datetime(2021, 9, 22, 0, 0))]
-RUN_NAME = "missingsarbackscatter5"
+date_ranges = [('19LFJ', datetime.datetime(2024, 4, 3, 0, 0), datetime.datetime(2024, 4, 27, 0, 0)), ('21MUM', datetime.datetime(2021, 7, 24, 0, 0), datetime.datetime(2021, 8, 5, 0, 0)), ('21MUN', datetime.datetime(2024, 5, 21, 0, 0), datetime.datetime(2024, 6, 14, 0, 0)), ('22KBE', datetime.datetime(2024, 2, 15, 0, 0), datetime.datetime(2024, 3, 10, 0, 0)), ('22LBM', datetime.datetime(2021, 6, 30, 0, 0), datetime.datetime(2021, 7, 12, 0, 0)), ('22LBM', datetime.datetime(2022, 8, 12, 0, 0), datetime.datetime(2022, 9, 5, 0, 0)), ('22LBM', datetime.datetime(2023, 5, 27, 0, 0), datetime.datetime(2023, 6, 20, 0, 0)), ('22LBM', datetime.datetime(2024, 5, 21, 0, 0), datetime.datetime(2024, 6, 14, 0, 0)), ('22MHT', datetime.datetime(2021, 1, 13, 0, 0), datetime.datetime(2021, 1, 25, 0, 0)), ('22MHT', datetime.datetime(2021, 11, 9, 0, 0), datetime.datetime(2021, 11, 21, 0, 0))]
+RUN_NAME = "missingsarbackscatter256_3"
 # Define the input file and work directory paths
 input_df_path = Path("/mnt/hddarchive.nfs/amazonas_dir/work_dir/S2_Tiles_MCD_AI.gpkg")
 work_dir = Path(f"/mnt/hddarchive.nfs/amazonas_dir/work_dir/backscatter_jobmanagement_{RUN_NAME}")
@@ -33,7 +33,7 @@ input_df = gpd.read_file(input_df_path)
 job_list = []
 
 # Iterate over the date_ranges and get the bounding box for each tile
-for tile_name, startdate, enddate in date_ranges:
+for  tile_name, startdate, enddate in date_ranges:
     # Query the GPKG for the tile's bounding box
     tile_data = input_df[input_df["Name"] == tile_name]
 
