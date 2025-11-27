@@ -1,8 +1,14 @@
+import numpy as np
 import xarray as xr
+import logging
+from pyproj import Transformer
+from openeo.udf import XarrayDataCube
 import pandas as pd
+import requests
 from osgeo import osr, ogr
 import re
-from datetime import datetime, timedelta
+from datetime import timedelta
+import datetime
 from collections import defaultdict, Counter, OrderedDict
 from typing import Dict, List, Tuple, Optional
 import requests
@@ -10,6 +16,7 @@ from shapely.geometry import shape
 
 import time
 import numpy as np
+from scipy import stats
 from scipy.stats import ttest_ind_from_stats
 from copy import copy
 import logging
@@ -18,6 +25,144 @@ DEBUG = False
 APPLY_SIEVE_FILTER = True
 
 logger = logging.getLogger(__name__)
+
+# -------------------------
+# Time extents
+# -------------------------
+# Phase boundaries as DATES
+
+MASTER_START = datetime.datetime(2015, 4, 28)
+PHASE1_END = datetime.datetime(2021, 12, 16)
+PHASE2_END = datetime.datetime(2025, 3, 30)
+
+# ───────────────────────── Step logic (your rule) ─────────────────────────
+
+def step_forward(start_d: datetime.datetime, acq_frequency: int = 6) -> int:
+    """
+    Decide interval length (N or 2N) from a given START date.
+
+    Rule:
+      - If start + N does NOT cross PHASE1_END => use N
+      - Else, as long as start < PHASE2_END    => use 2N
+      - Once start >= PHASE2_END               => use N
+    """
+    N = acq_frequency
+
+    if start_d + timedelta(days=N) <= PHASE1_END:
+        # Still in Phase 1
+        return N
+    elif start_d < PHASE2_END:
+        # Phase 2 (including the interval that crosses PHASE2_END)
+        return 2 * N
+    else:
+        # Phase 3
+        return N
+
+
+# ───────────────────────── Backwards (no truncation) ─────────────────────────
+
+def prev_interval(cur_start: datetime.datetime, acq_frequency: int = 6) -> Tuple[datetime.date, datetime.date]:
+    """
+    Given the START of the current interval, find the previous full interval [prev_start, cur_start],
+    such that its length is either N or 2N and is consistent with step_forward(prev_start).
+
+    No truncation: length is exactly N or 2N.
+    """
+    N = acq_frequency
+
+    # Candidate 1: previous interval length N
+    cand1_start = cur_start - timedelta(days=N)
+    cand1_len   = N
+    cand1_ok = (
+        step_forward(cand1_start, N) == cand1_len and
+        cand1_start + timedelta(days=cand1_len) == cur_start
+    )
+
+    # Candidate 2: previous interval length 2N
+    cand2_start = cur_start - timedelta(days=2 * N)
+    cand2_len   = 2 * N
+    cand2_ok = (
+        step_forward(cand2_start, N) == cand2_len and
+        cand2_start + timedelta(days=cand2_len) == cur_start
+    )
+
+    if not cand1_ok and not cand2_ok:
+        raise RuntimeError(f"No valid previous interval for start={cur_start}")
+
+    if cand1_ok and not cand2_ok:
+        return cand1_start, cur_start
+    if cand2_ok and not cand1_ok:
+        return cand2_start, cur_start
+
+    # Both valid (rare near boundaries) – prefer 2N by convention
+    return cand2_start, cur_start
+
+
+def back_chain(anchor_start: datetime.datetime, n_back: int, acq_frequency: int = 6) -> List[Tuple[datetime.date, datetime.date]]:
+    """
+    Build n_back intervals BEFORE anchor_start, going backwards, with no truncation.
+    """
+    intervals: List[Tuple[datetime.date, datetime.date]] = []
+    cur_start = anchor_start
+
+    for _ in range(n_back):
+        prev_start, prev_end = prev_interval(cur_start, acq_frequency)
+        intervals.append((prev_start, prev_end))
+        cur_start = prev_start
+
+    # Reverse to chronological order
+    return list(reversed(intervals))
+
+
+# ───────────────────────── Forwards (no truncation) ─────────────────────────
+
+def forward_chain(anchor_start: datetime.datetime, n_forw: int, acq_frequency: int = 6) -> List[Tuple[datetime.date, datetime.date]]:
+    """
+    Build n_forw intervals starting from anchor_start (first interval starts at anchor_start).
+    """
+    intervals: List[Tuple[datetime.date, datetime.date]] = []
+    cur_start = anchor_start
+
+    for _ in range(n_forw):
+        length = step_forward(cur_start, acq_frequency)
+        end = cur_start + timedelta(days=length)
+        intervals.append((cur_start, end))
+        cur_start = end
+
+    return intervals
+
+# ───────────────────────── Main helper: 5 back + 4 forward ─────────────────────────
+
+def get_context_intervals(
+    start_str: str,
+    back: int = 5,
+    forward: int = 4,
+    acq_frequency: int = 6
+) -> List[Tuple[datetime.date, datetime.date]]:
+    """
+    Returns:
+      - `back` intervals before start_date
+      - the interval starting at start_date
+      - `forward` intervals after that
+
+    Total = back + 1 + forward intervals.
+    The 6th interval's START is exactly start_date if back=5.
+    """
+    start_d = datetime.datetime.strptime(start_str, "%Y-%m-%d")
+    before = back_chain(start_d, back, acq_frequency)          # 5 intervals before
+    after  = forward_chain(start_d, forward + 1, acq_frequency)  # includes anchor as first
+    return before + after
+
+def get_overall_start_end(intervals: List[Tuple[datetime.date, datetime.date]]):
+    """
+    Given a list of intervals [(start, end), ...],
+    return (overall_start, overall_end).
+    """
+    overall_start = min(s for s, e in intervals)
+    overall_end   = max(e for s, e in intervals)
+    return overall_start, overall_end
+
+
 
 # -------------------------
 # Config / Constants
@@ -103,12 +248,12 @@ def get_temporal_extent(arr: xr.DataArray) -> dict:
 # -------------------------
 # Utilities
 # -------------------------
-def parse_date_from_title(title: str) -> Optional[datetime]:
+def parse_date_from_title(title: str) -> Optional[datetime.datetime]:
     """Extract YYYYMMDD as datetime from a Sentinel-1 title. Return None if not found."""
     m = DATE_RE.search(title)
     if not m:
         return None
-    return datetime.strptime(m.group(1), "%Y%m%d")
+    return datetime.datetime.strptime(m.group(1), "%Y%m%d")
 
 
 def intersection_ratio_bbox2_in_bbox1(b1: List[float], b2: List[float]) -> float:
@@ -131,7 +276,7 @@ def intersection_ratio_bbox2_in_bbox1(b1: List[float], b2: List[float]) -> float
     return 0.0 if area2 <= 0 else inter_area / area2
 
 
-def get_intervals(start_dt: str, end_dt: str, acq_frequency: int = 6) -> List[Tuple[datetime, datetime]]:
+def get_intervals(start_dt: datetime.datetime, end_dt: datetime.datetime, acq_frequency: int = 6) -> List[Tuple[datetime.datetime, datetime.datetime]]:
     """
     Build phase-based intervals between start_date and end_date (inclusive of the interval containing end_date).
     Phases:
@@ -141,9 +286,7 @@ def get_intervals(start_dt: str, end_dt: str, acq_frequency: int = 6) -> List[Tu
     """
     # start_dt = start_date.to_pydatetime()
     # end_dt = end_date.to_pydatetime()
-    MASTER_START = datetime(2015, 4, 28)
-    PHASE1_END = datetime(2021, 12, 16)
-    PHASE2_END = datetime(2025, 3, 30)
+
     GEN_END = end_dt + timedelta(days=25)
 
     points = []
@@ -199,7 +342,7 @@ def fetch_s1_features(bbox: List[float], start_iso: str, end_iso: str) -> List[d
     return r.json().get("features", [])
 
 
-def build_index_by_date_orbit(features: List[dict]) -> Dict[Tuple[datetime, str], List[dict]]:
+def build_index_by_date_orbit(features: List[dict]) -> Dict[Tuple[datetime.datetime, str], List[dict]]:
     """
     Keep only GRDH (non-CARD_BS, non-COG) scenes and index them by (date, orbitDirection),
     ordered chronologically by date.
@@ -219,8 +362,8 @@ def build_index_by_date_orbit(features: List[dict]) -> Dict[Tuple[datetime, str]
     ordered = OrderedDict(sorted(temp.items(), key=lambda kv: kv[0][0]))
     return ordered
 
-def filter_index_to_dates(index_do: Dict[Tuple[datetime, str], List[dict]],
-                          dt_list: List[datetime]) -> Dict[Tuple[datetime, str], List[dict]]:
+def filter_index_to_dates(index_do: Dict[Tuple[datetime.datetime, str], List[dict]],
+                          dt_list: List[datetime.datetime]) -> Dict[Tuple[datetime.datetime, str], List[dict]]:
     """Keep only entries whose date is in dt_list (exact date match)."""
     dates = set(dt_list)
     return {k: v for k, v in index_do.items() if k[0] in dates}
@@ -239,7 +382,7 @@ def filter_index_by_orbit(index_do, selected_orbit):
     )
 
 
-def pick_orbit_direction(index_do: Dict[Tuple[datetime, str], List[dict]],
+def pick_orbit_direction(index_do: Dict[Tuple[datetime.datetime, str], List[dict]],
                          aoi_bbox: List[float]) -> Optional[str]:
     """
     Choose orbit direction deterministically:
@@ -289,7 +432,7 @@ def pick_orbit_direction(index_do: Dict[Tuple[datetime, str], List[dict]],
     return overlap_leaders[0] if len(overlap_leaders) == 1 else None
 
 
-def get_scene_indices(index_do: Dict[Tuple[datetime, str], List[dict]],
+def get_scene_indices(index_do: Dict[Tuple[datetime.datetime, str], List[dict]],
                       feature_names: List[str]) -> List[Tuple[int, str]]:
     """
     Returns indices & filenames from feature_names that match ANY date present in the index.
@@ -698,22 +841,23 @@ def apply_datacube(cube: xr.DataArray, context: Dict) -> xr.DataArray:
     """
     Simple UDF: Check S1 observation frequency via STAC and aggregate temporally.
     """
-    acq_frequency = 12
+
     arr = cube
 
-
     # Get temporal extent
-    start_str_time = context["start_time"]
-    end_str_time = context["end_time"]
     epsg_code = context["epsg"]
     spatial_extent = context["spatial_extent"]
+    datection_time = context["detection_time"]
+    acq_frequency = int(context.get("acq_frequency", 12))
+
+    # temporal extent
+    intervals = get_context_intervals(datection_time, acq_frequency=acq_frequency)
+    start_time, end_time = get_overall_start_end(intervals)
+    logger.info(f"Processingfromto: {start_time} to {end_time}")
 
     # Get spatial extent
     spatial_extent_4326, bbox_4326 = get_spatial_extent(spatial_extent)
     logger.info(f"Spatial extent in EPSG:{epsg_code}: {spatial_extent_4326} {bbox_4326}")
-
-    start_time = datetime.strptime(start_str_time, "%Y-%m-%d")
-    end_time = datetime.strptime(end_str_time, "%Y-%m-%d")
 
     temporal_extent = get_temporal_extent(arr)
 
@@ -739,17 +883,21 @@ def apply_datacube(cube: xr.DataArray, context: Dict) -> xr.DataArray:
     # 4).
     DEC_array_combined = None
     entered_wininterval_loop = False
-    DEC_array_list = []
+
+    DEC_temporal_list = []
     win_list = []
     logger.info(f"Processingtimewindows {len(group_days_interval)}")
     for win, win_days_interval in group_days_interval.items():
+        DEC_array_list = []
         entered_wininterval_loop = True
         DEC_array_stack = []
+        DEC_array_threshold_stack = []
         for orbit_dir in ["ASCENDING", "DESCENDING"]:
             index_orb_do = filter_index_by_orbit(index_do, orbit_dir)
 
             if len(index_orb_do) == 0:
                 DEC_array_stack.append(template_array)
+                DEC_array_threshold_stack.append(template_array)
                 continue
 
             vv_list = []
@@ -762,7 +910,7 @@ def apply_datacube(cube: xr.DataArray, context: Dict) -> xr.DataArray:
                 time_points_averaged_str = ""
                 for (dt, ob), fts in index_orb_do.items():
                     if interval_start <= dt < interval_end:
-                        idx = next((i for i, d in enumerate(temporal_extent["times"]) if d.date() == dt.date()), None)
+                        idx = next((i for i, d in enumerate(temporal_extent["times"]) if d == dt), None)
                         scene_array = arr[idx, :, :, :]
                         vh_band = scene_array[0, :, :]
                         vv_band = scene_array[1, :, :]
@@ -787,27 +935,38 @@ def apply_datacube(cube: xr.DataArray, context: Dict) -> xr.DataArray:
             vv_array_stack = np.stack(vv_list, axis=0)
             DEC_array_threshold, DEC_array_mask = apply_stat_datacube({"VV": vv_array_stack, "VH": vh_array_stack}, window_size=10)
             DEC_array_stack.append(DEC_array_mask)
+            DEC_array_threshold_stack.append(DEC_array_threshold)
+
 
         DEC_array_combined = np.nanmax(np.stack(DEC_array_stack, axis=0), axis=0)
         DEC_array_list.append(DEC_array_combined)
-        win_list.append(win)
+        DEC_array_list.extend(DEC_array_stack)
+        DEC_array_list.extend(DEC_array_threshold_stack)
 
+        win_list.append(win)
+        logger.info(f"DECArraylistlen {len(DEC_array_list)}")
+        DEC_temporal_list.append(np.stack(DEC_array_list, axis=0))
+        logger.info(f"DECArrayliststackshape {np.stack(DEC_array_list, axis=0).shape}")
+
+    logger.info(f"DECtemporallistlen {len(DEC_temporal_list)}")
     if not entered_wininterval_loop:
         DEC_array_list = [template_array]
-        win_list = [datetime(1, 1, 1, 0, 0, 0, 0)]
+        win_list = [datetime.datetime(1, 1, 1, 0, 0, 0, 0)]
 
     if len(DEC_array_list) == 0:
         DEC_array_list = [template_array]
-        win_list = [datetime(1, 1, 1, 0, 0, 0, 0)]
+        win_list = [datetime.datetime(1, 1, 1, 0, 0, 0, 0)]
 
-    DEC_array_combined_arraystack = np.stack(DEC_array_list, axis=0)
+    DEC_temporal_array = np.stack(DEC_temporal_list, axis=0)
+    logger.info(f"DECtemporalarray {DEC_temporal_array.shape}")
+
     # create xarray with single timestamp
     output_xarraycube = xr.DataArray(
-        DEC_array_combined_arraystack[:, np.newaxis, :, :],   #DEC_array_combined[np.newaxis, np.newaxis, :, :],   # add a time dimension
+        DEC_temporal_array,   #DEC_array_combined[np.newaxis, np.newaxis, :, :],   # add a time dimension
         dims=["t", "bands", "y", "x"],
         coords={
             "t": win_list,
-            "bands": ["DEC"],# win is your datetime.datetime object
+            "bands": ["DEC", "DEC_asc", "DEC_asc_threshold", "DEC_des", "DEC_des_threshold"],# win is your datetime.datetime object
             "y": arr.coords["y"],
             "x": arr.coords["x"],
         }
