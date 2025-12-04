@@ -139,10 +139,12 @@ def get_temporal_extends(udf_data: UdfData) -> UdfData:
     temporal_extent = udf_data.get_structured_data_list()[0].data
     start_date = temporal_extent[0]
     end_date = temporal_extent[1]
-    acq_freq = int(end_date)
 
     start_datetime = datetime.date.fromisoformat(start_date)
-    # end_datetime = datetime.date.fromisoformat(end_date)
+    end_datetime = datetime.date.fromisoformat(end_date)
+
+    delta_days = (end_datetime - start_datetime).days
+    acq_freq = abs(delta_days)
 
     intervals = get_context_intervals(start_datetime, acq_frequency=acq_freq)
     overall_start, overall_end = get_overall_start_end(intervals)

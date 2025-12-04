@@ -1,17 +1,23 @@
 import openeo
 import openeo.processes as eop
-from openeo import UDF, DataCube
+from openeo import UDF
 
 connection  = openeo.connect("openeo.dataspace.copernicus.eu").authenticate_oidc()
 
-crs = "32721"
-west, south, east, north =  770900,8660000, 787040, 8697260
+#
+# crs = "32721"
+# west, south, east, north =  770900,8660000, 787040, 8697260
+
+# small road
+crs = "32618"
+west, south, east, north = 788200,199180, 803800,214100
+
 spatial_extent = {"south": south, "east": east, "north": north, "west": west, "crs": f"EPSG:{crs}"}
 acq_freq = 12
 ####################
 # PART 1: Extend temporal extent using UDF
 ####################
-temporal_extent = ["2025-03-30", str(acq_freq)]
+temporal_extent = ["2020-03-30", "2020-04-06"]
 udf = openeo.UDF.from_file("udf_createcustomintervals.py")
 extended_temporal_extent = eop.run_udf(
     data=temporal_extent,
@@ -39,8 +45,8 @@ s1_backcatter = s1.sar_backscatter(
 # PART 3: Apply statcube processing
 ####################
 # context_udf = {"start_time": extended_temporal_extent[0], "end_time": extended_temporal_extent[1], "epsg": int(crs), "spatial_extent": spatial_extent}
-context_udf = {"epsg": int(crs), "spatial_extent": spatial_extent, "detection_time": temporal_extent[0], "acq_frequency": acq_freq}
-udf = UDF.from_file("/home/eouser/userdoc/src/pythonProject/hans_udf_S1backscatter_updated_oncube.py", context=context_udf)
+context_udf = {"epsg": int(crs), "spatial_extent": spatial_extent, "detection_start_time": temporal_extent[0], "detection_end_time": temporal_extent[1],"acq_frequency": acq_freq}
+udf = UDF.from_file("udf_apex_S1backscatter_changedetection.py", context=context_udf)
 
 output = s1_backcatter.apply_dimension(process=udf, dimension="t")
 job_options = {"executor-memory": "4G",

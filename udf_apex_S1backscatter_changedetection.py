@@ -1,10 +1,5 @@
-import numpy as np
 import xarray as xr
-import logging
-from pyproj import Transformer
-from openeo.udf import XarrayDataCube
 import pandas as pd
-import requests
 from osgeo import osr, ogr
 import re
 from datetime import timedelta
@@ -13,10 +8,10 @@ from collections import defaultdict, Counter, OrderedDict
 from typing import Dict, List, Tuple, Optional
 import requests
 from shapely.geometry import shape
+from scipy import ndimage as ndi
 
 import time
 import numpy as np
-from scipy import stats
 from scipy.stats import ttest_ind_from_stats
 from copy import copy
 import logging
@@ -173,7 +168,7 @@ DATE_RE = re.compile(r'_(\d{8})T\d{6}_')  # e.g., ..._20211201T091308_...
 # -------------------------
 # Datacube utils
 # -------------------------
-def get_spatial_extent(spatial_extent) -> dict:
+def get_spatial_extent(spatial_extent) -> Tuple[dict, List[float]]:
 
     """Get spatial bounds in WGS84."""
     # x_coord = arr.coords['x'].values
@@ -248,6 +243,35 @@ def get_temporal_extent(arr: xr.DataArray) -> dict:
 # -------------------------
 # Utilities
 # -------------------------
+def remove_small_objects(mask, min_size=2, connectivity=1):
+    """
+    Removes connected components of 1s smaller than min_size.
+    Fastest possible implementation (SciPy C backend).
+    """
+    mask = np.asarray(mask).astype(bool)
+
+    if min_size <= 1:
+        return mask
+
+    # Label connected components in the foreground (1-pixels)
+    structure = ndi.generate_binary_structure(mask.ndim, connectivity)
+    labels, num = ndi.label(mask, structure=structure)
+
+    if num == 0:
+        return mask
+
+    # Compute size of each component
+    sizes = ndi.sum(mask, labels, index=np.arange(1, num + 1))
+
+    # Select components to keep
+    keep_labels = np.where(sizes >= min_size)[0] + 1
+
+    # Build output
+    out = np.isin(labels, keep_labels)
+
+    return out
+
+
 def parse_date_from_title(title: str) -> Optional[datetime.datetime]:
     """Extract YYYYMMDD as datetime from a Sentinel-1 title. Return None if not found."""
     m = DATE_RE.search(title)
@@ -276,39 +300,7 @@ def intersection_ratio_bbox2_in_bbox1(b1: List[float], b2: List[float]) -> float
     return 0.0 if area2 <= 0 else inter_area / area2
 
 
-def get_intervals(start_dt: datetime.datetime, end_dt: datetime.datetime, acq_frequency: int = 6) -> List[Tuple[datetime.datetime, datetime.datetime]]:
-    """
-    Build phase-based intervals between start_date and end_date (inclusive of the interval containing end_date).
-    Phases:
-      - Phase 1: 2015-04-28 .. 2021-12-16 step=acq_frequency
-      - Phase 2: 2021-12-16 .. 2025-03-30 step=acq_frequency*2
-      - Phase 3: 2025-03-30 .. end step=acq_frequency
-    """
-    # start_dt = start_date.to_pydatetime()
-    # end_dt = end_date.to_pydatetime()
 
-    GEN_END = end_dt + timedelta(days=25)
-
-    points = []
-    cur = MASTER_START
-    while cur < PHASE1_END:
-        points.append(cur)
-        cur += timedelta(days=acq_frequency)
-
-    cur = PHASE1_END
-    while cur < PHASE2_END:
-        points.append(cur)
-        cur += timedelta(days=acq_frequency * 2)
-
-    cur = PHASE2_END
-    while cur < GEN_END:
-        points.append(cur)
-        cur += timedelta(days=acq_frequency)
-
-    intervals = list(zip(points[:-1], points[1:]))
-    return [(s, e)
-            for (s, e) in intervals
-            if (s >= start_dt and e <= end_dt)]
 
 
 def create_timewindow_groups(intervals, window_size=10):
@@ -338,7 +330,7 @@ def fetch_s1_features(bbox: List[float], start_iso: str, end_iso: str) -> List[d
     }
     r = requests.get(S1_SEARCH_URL, params=params, timeout=30)
     r.raise_for_status()
-    logger.info(f"s1query {r.url}")
+    # logger.info(f"s1query {r.url}")
     return r.json().get("features", [])
 
 
@@ -825,15 +817,6 @@ def apply_stat_datacube(numpy_stack_pol_dict, window_size=10, compute_dtype=np.f
     DEC_array_threshold[dead_any] = 0
     DEC_array_mask[dead_any] = 0
 
-    # Morphological hole-filling on the binary mask (only on valid area)
-    # if np.any(DEC_array_mask) and APPLY_SIEVE_FILTER:
-    #     logger.info(f"sieve filtering")
-    #     inverted = np.logical_not(DEC_array_mask.astype(bool))
-    #     processed = remove_small_holes(inverted, area_threshold=10)
-    #     DEC_array_mask = np.logical_not(processed).astype(np.uint8)
-    #     # Keep dead pixels at 0
-    #     DEC_array_mask[dead_any] = 0
-
     return DEC_array_threshold, DEC_array_mask
 
 
@@ -847,36 +830,40 @@ def apply_datacube(cube: xr.DataArray, context: Dict) -> xr.DataArray:
     # Get temporal extent
     epsg_code = context["epsg"]
     spatial_extent = context["spatial_extent"]
-    datection_time = context["detection_time"]
-    acq_frequency = int(context.get("acq_frequency", 12))
+    datection_time = context["detection_start_time"]
+    detection_end_time = context["detection_end_time"]
+
+    start_d = datetime.datetime.strptime(datection_time, "%Y-%m-%d")
+    end_d = datetime.datetime.strptime(detection_end_time, "%Y-%m-%d")
+    delta_days = (end_d - start_d).days
+    acq_frequency = abs(delta_days)
 
     # temporal extent
-    intervals = get_context_intervals(datection_time, acq_frequency=acq_frequency)
-    start_time, end_time = get_overall_start_end(intervals)
-    logger.info(f"Processingfromto: {start_time} to {end_time}")
+    days_interval = get_context_intervals(datection_time, acq_frequency=acq_frequency)
+    start_time, end_time = get_overall_start_end(days_interval)
+    # logger.info(f"Processingfromto: {start_time} to {end_time}")
+
+    group_days_interval = create_timewindow_groups(days_interval)
 
     # Get spatial extent
     spatial_extent_4326, bbox_4326 = get_spatial_extent(spatial_extent)
-    logger.info(f"Spatial extent in EPSG:{epsg_code}: {spatial_extent_4326} {bbox_4326}")
+    # logger.info(f"Spatial extent in EPSG:{epsg_code}: {spatial_extent_4326} {bbox_4326}")
 
     temporal_extent = get_temporal_extent(arr)
 
-    # 1) Fetch & build index
+    # Fetch & build index
     feats = fetch_s1_features(bbox_4326, temporal_extent["start"], temporal_extent["end"])
     index_do = build_index_by_date_orbit(feats)
 
     template_array = np.zeros_like(arr[0, 0, :, :])
 
     # 2) Filter to your dates of interest
-    logger.info(f"featuresdateorb: {index_do.keys()}")
-    logger.info(f"filteringscenesusing: {temporal_extent['times']}")
+    # logger.info(f"featuresdateorb: {index_do.keys()}")
+    # logger.info(f"filteringscenesusing: {temporal_extent['times']}")
     index_do = filter_index_to_dates(index_do, temporal_extent["times"])
-    logger.info(f"AfterTimeFilter: {index_do.keys()}")
+    # logger.info(f"AfterTimeFilter: {index_do.keys()}")
     # 3) Decide the orbit direction (or None if tie after tie-break)
     # selected_orbit = pick_orbit_direction(index_do, bbox)
-
-    days_interval = get_intervals(start_time, end_time, acq_frequency)
-    group_days_interval = create_timewindow_groups(days_interval)
 
     arr = 10 * np.log10(arr)
 
@@ -886,7 +873,7 @@ def apply_datacube(cube: xr.DataArray, context: Dict) -> xr.DataArray:
 
     DEC_temporal_list = []
     win_list = []
-    logger.info(f"Processingtimewindows {len(group_days_interval)}")
+    # logger.info(f"Processingtimewindows {len(group_days_interval)}")
     for win, win_days_interval in group_days_interval.items():
         DEC_array_list = []
         entered_wininterval_loop = True
@@ -926,7 +913,7 @@ def apply_datacube(cube: xr.DataArray, context: Dict) -> xr.DataArray:
                 else:
                     vh_avg = np.nanmean(vh_window_stack, axis=0)
                     vv_avg = np.nanmean(vv_window_stack, axis=0)
-                logger.info(f"AvgInfo: shapes {vh_avg.shape} {vv_avg.shape}  {interval_start.date()} to {interval_end.date()}, win: {win}, {time_points_averaged_str} -- Orbit: {orbit_dir}, -- avg {len(vh_window_stack)} scenes.")
+                # logger.info(f"AvgInfo: shapes {vh_avg.shape} {vv_avg.shape}  {interval_start.date()} to {interval_end.date()}, win: {win}, {time_points_averaged_str} -- Orbit: {orbit_dir}, -- avg {len(vh_window_stack)} scenes.")
 
                 vh_list.append(vh_avg)
                 vv_list.append(vv_avg)
@@ -934,6 +921,7 @@ def apply_datacube(cube: xr.DataArray, context: Dict) -> xr.DataArray:
             vh_array_stack = np.stack(vh_list, axis=0)
             vv_array_stack = np.stack(vv_list, axis=0)
             DEC_array_threshold, DEC_array_mask = apply_stat_datacube({"VV": vv_array_stack, "VH": vh_array_stack}, window_size=10)
+            DEC_array_mask = remove_small_objects(DEC_array_mask, min_size=4)
             DEC_array_stack.append(DEC_array_mask)
             DEC_array_threshold_stack.append(DEC_array_threshold)
 
@@ -944,11 +932,11 @@ def apply_datacube(cube: xr.DataArray, context: Dict) -> xr.DataArray:
         DEC_array_list.extend(DEC_array_threshold_stack)
 
         win_list.append(win)
-        logger.info(f"DECArraylistlen {len(DEC_array_list)}")
+        # logger.info(f"DECArraylistlen {len(DEC_array_list)}")
         DEC_temporal_list.append(np.stack(DEC_array_list, axis=0))
-        logger.info(f"DECArrayliststackshape {np.stack(DEC_array_list, axis=0).shape}")
+        # logger.info(f"DECArrayliststackshape {np.stack(DEC_array_list, axis=0).shape}")
 
-    logger.info(f"DECtemporallistlen {len(DEC_temporal_list)}")
+    # logger.info(f"DECtemporallistlen {len(DEC_temporal_list)}")
     if not entered_wininterval_loop:
         DEC_array_list = [template_array]
         win_list = [datetime.datetime(1, 1, 1, 0, 0, 0, 0)]
@@ -958,7 +946,7 @@ def apply_datacube(cube: xr.DataArray, context: Dict) -> xr.DataArray:
         win_list = [datetime.datetime(1, 1, 1, 0, 0, 0, 0)]
 
     DEC_temporal_array = np.stack(DEC_temporal_list, axis=0)
-    logger.info(f"DECtemporalarray {DEC_temporal_array.shape}")
+    # logger.info(f"DECtemporalarray {DEC_temporal_array.shape}")
 
     # create xarray with single timestamp
     output_xarraycube = xr.DataArray(
@@ -973,17 +961,3 @@ def apply_datacube(cube: xr.DataArray, context: Dict) -> xr.DataArray:
     )
 
     return output_xarraycube
-
-
-
-
-
-
-
-
-
-
-
-
-
-
