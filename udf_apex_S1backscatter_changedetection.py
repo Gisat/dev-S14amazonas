@@ -828,7 +828,6 @@ def apply_datacube(cube: xr.DataArray, context: Dict) -> xr.DataArray:
     arr = cube
 
     # Get temporal extent
-    epsg_code = context["epsg"]
     spatial_extent = context["spatial_extent"]
     datection_time = context["detection_start_time"]
     detection_end_time = context["detection_end_time"]
@@ -920,6 +919,8 @@ def apply_datacube(cube: xr.DataArray, context: Dict) -> xr.DataArray:
 
             vh_array_stack = np.stack(vh_list, axis=0)
             vv_array_stack = np.stack(vv_list, axis=0)
+            logger.info(f"StackInfo: shapes {vh_array_stack.shape} {vv_array_stack.shape} -- Orbit: {orbit_dir}")
+
             DEC_array_threshold, DEC_array_mask = apply_stat_datacube({"VV": vv_array_stack, "VH": vh_array_stack}, window_size=10)
             DEC_array_mask = remove_small_objects(DEC_array_mask, min_size=4)
             DEC_array_stack.append(DEC_array_mask)

@@ -1,6 +1,6 @@
-from openeo.udf import inspect, UdfData, StructuredData
+from openeo.udf import UdfData, StructuredData
 import datetime
-from typing import Dict, List, Tuple, Optional
+from typing import List, Tuple
 
 # Phase boundaries as DATES
 PHASE1_END = datetime.date(2021, 12, 16)
@@ -160,5 +160,4 @@ def get_temporal_extends(udf_data: UdfData) -> UdfData:
             type="list"
         )
     ])
-    inspect(message="Resulting udf_data", data=str(udf_data.to_dict()))
     return udf_data

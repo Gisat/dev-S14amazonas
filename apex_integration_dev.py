@@ -9,15 +9,18 @@ connection  = openeo.connect("openeo.dataspace.copernicus.eu").authenticate_oidc
 # west, south, east, north =  770900,8660000, 787040, 8697260
 
 # small road
-crs = "32618"
-west, south, east, north = 788200,199180, 803800,214100
+# crs = "32618"
+# west, south, east, north = 788200,199180, 803800,214100
 
+crs = "32721"
+west, south, east, north = 733677.7864486989565194,8635458.9404676575213671,763907.4923464423045516,8672119.4999492373317480
 spatial_extent = {"south": south, "east": east, "north": north, "west": west, "crs": f"EPSG:{crs}"}
-acq_freq = 12
+temporal_extent = ["2020-03-11", "2020-03-23"]
+
 ####################
 # PART 1: Extend temporal extent using UDF
 ####################
-temporal_extent = ["2020-03-30", "2020-04-06"]
+
 udf = openeo.UDF.from_file("udf_createcustomintervals.py")
 extended_temporal_extent = eop.run_udf(
     data=temporal_extent,
@@ -32,10 +35,10 @@ extended_temporal_extent = eop.run_udf(
 
 s1 = connection.load_collection(
     collection_id="SENTINEL1_GRD",
-    bands=["VH", "VV"]
+    bands=["VH", "VV"], spatial_extent=spatial_extent,
 ).filter_temporal(start_date=extended_temporal_extent[0], end_date=extended_temporal_extent[1])
 
-s1 = s1.filter_bbox(spatial_extent).resample_spatial(projection=f"EPSG:{crs}", resolution=20, align="upper-left")
+s1 = s1.filter_bbox(spatial_extent).resample_spatial(resolution=20, align="upper-left") # projection=f"EPSG:{crs}",
 s1_backcatter = s1.sar_backscatter(
     elevation_model="COPERNICUS_30",
     coefficient="sigma0-ellipsoid",
@@ -45,17 +48,39 @@ s1_backcatter = s1.sar_backscatter(
 # PART 3: Apply statcube processing
 ####################
 # context_udf = {"start_time": extended_temporal_extent[0], "end_time": extended_temporal_extent[1], "epsg": int(crs), "spatial_extent": spatial_extent}
-context_udf = {"epsg": int(crs), "spatial_extent": spatial_extent, "detection_start_time": temporal_extent[0], "detection_end_time": temporal_extent[1],"acq_frequency": acq_freq}
+context_udf = {"spatial_extent": spatial_extent, "detection_start_time": temporal_extent[0], "detection_end_time": temporal_extent[1]}
 udf = UDF.from_file("udf_apex_S1backscatter_changedetection.py", context=context_udf)
+output_statmcd = s1_backcatter.apply_dimension(process=udf, dimension="t")
+output_statmcd = output_statmcd.rename_labels(dimension="bands", target=["DEC", "DEC_asc", "DEC_asc_threshold", "DEC_des", "DEC_des_threshold"])
 
-output = s1_backcatter.apply_dimension(process=udf, dimension="t")
+context_udf = {"spatial_extent": spatial_extent,
+               "detection_start_time": temporal_extent[0], "detection_end_time": temporal_extent[1],
+                "datacube_ai_time_window": 5}
+udf_ai = UDF.from_file("udf_apex_S1backscatter_aichangedetection.py", context=context_udf)
+output_aimcd = s1_backcatter.apply_neighborhood(
+        process=udf_ai,
+        size=[
+            {"dimension": "x", "value": 192, "unit": "px"},
+            {"dimension": "y", "value": 192, "unit": "px"},
+        ],
+        overlap=[
+            {"dimension": "x", "value": 32, "unit": "px"},
+            {"dimension": "y", "value": 32, "unit": "px"},
+        ])
+output_aimcd = output_aimcd.rename_labels(dimension="bands", target=["MCD_AI"])
+output = output_statmcd.merge_cubes(output_aimcd)
+
 job_options = {"executor-memory": "4G",
     "executor-memoryOverhead": "500m",
     "python-memory": "2500m",
     "driver-memory": "2G",
     "driver-memoryOverhead": "2G",
     "max-executors": 5,
-    "soft-errors": True}
+    "soft-errors": True,
+   "udf-dependency-archives": [
+       f"https://s3.waw3-1.cloudferro.com/swift/v1/project_dependencies/onnx_deps_python311.zip#onnx_deps",
+       f"https://s3.waw3-1.cloudferro.com/swift/v1/amazonas/ml_models/amazonas_ai_cnn.zip#onnx_models"]
+               }
 
 # job = connection.create_job(title='test_catalogue_check', process_graph= output, job_options=job_options)
 job = output.create_job(job_options=job_options)
