@@ -48,10 +48,9 @@ def generate() -> dict:
     ####################
     # PART 3: Apply statcube processing
     ####################:
-    context_udf = {"spatial_extent": {"from_parameter": "spatial_extent"}, "detection_start_time": {"from_parameter": "temporal_extent"},
-                   "detection_end_time": {"from_parameter": "temporal_extent"}}
-    udf = UDF.from_file("udf_apex_S1backscatter_changedetection.py", context=context_udf)
-    output_statmcd = s1_backcatter.apply_dimension(process=udf, dimension="t")
+    context_udf = {"spatial_extent": {"from_parameter": "spatial_extent"}, "detection_extent": {"from_parameter": "temporal_extent"}}
+    udf = UDF.from_file("udf_apex_S1backscatter_changedetection.py", context={"from_parameter": "context"}) 
+    output_statmcd = s1_backcatter.apply_dimension(process=udf, dimension="t", context=context_udf)
     output_statmcd = output_statmcd.rename_labels(dimension="bands",
                                                   target=["DEC", "DEC_asc", "DEC_asc_threshold", "DEC_des",
                                                           "DEC_des_threshold"])
