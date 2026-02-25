@@ -1,6 +1,7 @@
 import openeo
 import openeo.processes as eop
 from openeo import UDF
+from pathlib import Path
 
 connection  = openeo.connect("openeo.dataspace.copernicus.eu").authenticate_oidc()
 
@@ -20,8 +21,10 @@ temporal_extent = ["2020-03-11", "2020-03-23"]
 ####################
 # PART 1: Extend temporal extent using UDF
 ####################
+current_dir = Path(__file__).parent
+udf_path = current_dir / "udf_createcustomintervals.py"
 
-udf = openeo.UDF.from_file("udf_createcustomintervals.py")
+udf = openeo.UDF.from_file(str(udf_path))
 extended_temporal_extent = eop.run_udf(
     data=temporal_extent,
     udf=udf.code,
@@ -49,14 +52,17 @@ s1_backcatter = s1.sar_backscatter(
 ####################
 # context_udf = {"start_time": extended_temporal_extent[0], "end_time": extended_temporal_extent[1], "epsg": int(crs), "spatial_extent": spatial_extent}
 context_udf = {"spatial_extent": spatial_extent, "detection_start_time": temporal_extent[0], "detection_end_time": temporal_extent[1]}
-udf = UDF.from_file("udf_apex_S1backscatter_changedetection.py", context=context_udf)
+udf_path = current_dir / "udf_apex_S1backscatter_changedetection.py"
+udf = UDF.from_file(str(udf_path), context=context_udf)
 output_statmcd = s1_backcatter.apply_dimension(process=udf, dimension="t")
 output_statmcd = output_statmcd.rename_labels(dimension="bands", target=["DEC", "DEC_asc", "DEC_asc_threshold", "DEC_des", "DEC_des_threshold"])
 
 context_udf = {"spatial_extent": spatial_extent,
                "detection_start_time": temporal_extent[0], "detection_end_time": temporal_extent[1],
                 "datacube_ai_time_window": 5}
-udf_ai = UDF.from_file("udf_apex_S1backscatter_aichangedetection.py", context=context_udf)
+
+udf_path = current_dir / "udf_apex_S1backscatter_aichangedetection.py"
+udf_ai = UDF.from_file(str(udf_path), context=context_udf)
 output_aimcd = s1_backcatter.apply_neighborhood(
         process=udf_ai,
         size=[
