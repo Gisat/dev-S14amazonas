@@ -828,7 +828,8 @@ def apply_datacube(cube: xr.DataArray, context: Dict) -> xr.DataArray:
     arr = cube
 
     # Get temporal extent
-    spatial_extent = context["spatial_extent"]
+    spatial_extent = context.get("spatial_extent", 0)
+    logger.info(f"spatial context {spatial_extent}")#context["spatial_extent"]
     datection_time = context["detection_start_time"]
     detection_end_time = context["detection_end_time"]
 
