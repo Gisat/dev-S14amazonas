@@ -51,14 +51,14 @@ s1_backcatter = s1.sar_backscatter(
 # PART 3: Apply statcube processing
 ####################
 # context_udf = {"start_time": extended_temporal_extent[0], "end_time": extended_temporal_extent[1], "epsg": int(crs), "spatial_extent": spatial_extent}
-context_udf = {"spatial_extent": spatial_extent, "detection_start_time": temporal_extent[0], "detection_end_time": temporal_extent[1]}
+context_udf = {"spatial_extent": spatial_extent, "detection_extent": temporal_extent}
 udf_path = current_dir / "udf_apex_S1backscatter_changedetection.py"
 udf = UDF.from_file(str(udf_path), context=context_udf)
 output_statmcd = s1_backcatter.apply_dimension(process=udf, dimension="t")
 output_statmcd = output_statmcd.rename_labels(dimension="bands", target=["DEC", "DEC_asc", "DEC_asc_threshold", "DEC_des", "DEC_des_threshold"])
 
 context_udf = {"spatial_extent": spatial_extent,
-               "detection_start_time": temporal_extent[0], "detection_end_time": temporal_extent[1],
+               "detection_extent": temporal_extent,
                 "datacube_ai_time_window": 5}
 
 udf_path = current_dir / "udf_apex_S1backscatter_aichangedetection.py"

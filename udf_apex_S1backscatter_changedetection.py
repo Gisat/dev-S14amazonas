@@ -829,17 +829,17 @@ def apply_datacube(cube: xr.DataArray, context: Dict) -> xr.DataArray:
 
     # Get temporal extent
     spatial_extent = context.get("spatial_extent", 0)
-    logger.info(f"spatial context {spatial_extent}")#context["spatial_extent"]
-    datection_time = context["detection_start_time"]
-    detection_end_time = context["detection_end_time"]
+    logger.info(f"spatial context {spatial_extent}")
+    detection_start_time = context["detection_extent"][0]
+    detection_end_time = context["detection_extent"][1]
 
-    start_d = datetime.datetime.strptime(datection_time, "%Y-%m-%d")
+    start_d = datetime.datetime.strptime(detection_start_time, "%Y-%m-%d")
     end_d = datetime.datetime.strptime(detection_end_time, "%Y-%m-%d")
     delta_days = (end_d - start_d).days
     acq_frequency = abs(delta_days)
 
     # temporal extent
-    days_interval = get_context_intervals(datection_time, acq_frequency=acq_frequency)
+    days_interval = get_context_intervals(detection_start_time, acq_frequency=acq_frequency)
     start_time, end_time = get_overall_start_end(days_interval)
     # logger.info(f"Processingfromto: {start_time} to {end_time}")
 
