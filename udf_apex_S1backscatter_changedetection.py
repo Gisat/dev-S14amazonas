@@ -162,7 +162,7 @@ def get_overall_start_end(intervals: List[Tuple[datetime.date, datetime.date]]):
 # -------------------------
 # Config / Constants
 # -------------------------
-S1_SEARCH_URL = "https://catalogue.dataspace.copernicus.eu/resto/api/collections/Sentinel1/search.json"
+ODATA_URL = "https://datahub.creodias.eu/odata/v1/Products"
 DATE_RE = re.compile(r'_(\d{8})T\d{6}_')  # e.g., ..._20211201T091308_...
 
 # -------------------------
@@ -314,24 +314,57 @@ def create_timewindow_groups(intervals, window_size=10):
 
 def fetch_s1_features(bbox: List[float], start_iso: str, end_iso: str) -> List[dict]:
     """
-    Query the Copernicus Dataspace Resto API for Sentinel-1 features within bbox and datetime range.
-    Only returns features in JSON 'features' list.
+    Query the Copernicus Dataspace OData API for Sentinel-1 features within bbox and datetime range.
+    Returns features in a format compatible with the rest of the code (OpenSearch-like structure).
     """
+    # bbox is [south, west, north, east] - convert to WKT polygon
+    south, west, north, east = bbox
+    polygon_wkt = f"POLYGON(({west} {south},{east} {south},{east} {north},{west} {north},{west} {south}))"
+    
+    # Build OData filter parts
+    filters = [
+        "Collection/Name eq 'SENTINEL-1'",
+        f"ContentDate/Start gt {start_iso.strftime('%Y-%m-%dT00:00:00.000Z')}",
+        f"ContentDate/Start lt {end_iso.strftime('%Y-%m-%dT23:59:59.999Z')}",
+        f"OData.CSC.Intersects(area=geography'SRID=4326;{polygon_wkt}')",
+        "Attributes/OData.CSC.StringAttribute/any(att:att/Name eq 'productType' and att/OData.CSC.StringAttribute/Value eq 'IW_GRDH_1S-COG')",
+    ]
+    
+    filter_str = " and ".join(filters)
+    
     params = {
-        "box": ",".join(map(str, bbox)),
-        "page": 1,
-        "maxRecords": 1000,
-        "status": "ONLINE",
-        "dataset": "ESA-DATASET",
-        "processingLevel": "LEVEL1",
-        "productType": "IW_GRDH_1S-COG",
-        "startDate": f"{start_iso.strftime('%Y-%m-%dT00:00:00Z')}",
-        "completionDate": f"{end_iso.strftime('%Y-%m-%dT23:59:59.999999999Z')}",
+        "$filter": filter_str,
+        "$top": 1000,
+        "$expand": "Attributes",
+        "$orderby": "ContentDate/Start asc",
     }
-    r = requests.get(S1_SEARCH_URL, params=params, timeout=30)
+    
+    r = requests.get(ODATA_URL, params=params, timeout=60)
     r.raise_for_status()
-    # logger.info(f"s1query {r.url}")
-    return r.json().get("features", [])
+    
+    odata_products = r.json().get("value", [])
+    
+    # Transform OData response to OpenSearch-like format for compatibility
+    features = []
+    for prod in odata_products:
+        # Extract orbitDirection from Attributes
+        orbit_direction = "UNKNOWN"
+        for attr in prod.get("Attributes", []):
+            if attr.get("Name") == "orbitDirection":
+                orbit_direction = attr.get("Value", "UNKNOWN")
+                break
+        
+        # Build compatible feature structure
+        feature = {
+            "properties": {
+                "title": prod.get("Name", ""),
+                "orbitDirection": orbit_direction,
+            },
+            "geometry": prod.get("GeoFootprint", {}),
+        }
+        features.append(feature)
+    logger.info(f"-- fetched features {features} --")
+    return features
 
 
 def build_index_by_date_orbit(features: List[dict]) -> Dict[Tuple[datetime.datetime, str], List[dict]]:
@@ -850,7 +883,7 @@ def apply_datacube(cube: xr.DataArray, context: Dict) -> xr.DataArray:
     # logger.info(f"Spatial extent in EPSG:{epsg_code}: {spatial_extent_4326} {bbox_4326}")
 
     temporal_extent = get_temporal_extent(arr)
-
+    logger.info(f"Temporal extent in datacube: {temporal_extent}")
     # Fetch & build index
     feats = fetch_s1_features(bbox_4326, temporal_extent["start"], temporal_extent["end"])
     index_do = build_index_by_date_orbit(feats)

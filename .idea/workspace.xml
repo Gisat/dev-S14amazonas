@@ -5,13 +5,10 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="f07d5657-58a3-4460-9e44-9c72dab6cc4e" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/apex_generate.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/sentinel1_changedetection.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/udf_apex_S1backscatter_aichangedetection.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/apex_integration_dev.py" beforeDir="false" afterPath="$PROJECT_DIR$/apex_integration_dev.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/apex_generate.py" beforeDir="false" afterPath="$PROJECT_DIR$/apex_generate.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/sentinel1_mcd.json" beforeDir="false" afterPath="$PROJECT_DIR$/sentinel1_mcd.json" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/udf_apex_S1backscatter_changedetection.py" beforeDir="false" afterPath="$PROJECT_DIR$/udf_apex_S1backscatter_changedetection.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/udf_createcustomintervals.py" beforeDir="false" afterPath="$PROJECT_DIR$/udf_createcustomintervals.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -28,6 +25,10 @@
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
+  <component name="McpProjectServerCommands">
+    <commands />
+    <urls />
+  </component>
   <component name="ProjectColorInfo">{
   &quot;associatedIndex&quot;: 0
 }</component>
@@ -42,6 +43,7 @@
     "Python.apex_generate.executor": "Run",
     "Python.apex_integration_dev.executor": "Run",
     "Python.apex_udf_call.executor": "Debug",
+    "RunOnceActivity.MCP Project settings loaded": "true",
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "RunOnceActivity.git.unshallow": "true",
     "SHARE_PROJECT_CONFIGURATION_FILES": "true",
@@ -54,7 +56,7 @@
       <recent name="$PROJECT_DIR$" />
     </key>
   </component>
-  <component name="RunManager" selected="Python.apex_integration_dev">
+  <component name="RunManager" selected="Python.apex_generate">
     <configuration name="apex_generate" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
       <module name="dev-S14amazonas" />
       <option name="ENV_FILES" value="" />
@@ -68,6 +70,7 @@
       <option name="IS_MODULE_SDK" value="true" />
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="RUN_TOOL" value="" />
       <option name="SCRIPT_NAME" value="$PROJECT_DIR$/apex_generate.py" />
       <option name="PARAMETERS" value="" />
       <option name="SHOW_COMMAND_LINE" value="false" />
@@ -90,6 +93,7 @@
       <option name="IS_MODULE_SDK" value="true" />
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="RUN_TOOL" value="" />
       <option name="SCRIPT_NAME" value="$PROJECT_DIR$/apex_integration_dev.py" />
       <option name="PARAMETERS" value="" />
       <option name="SHOW_COMMAND_LINE" value="false" />
@@ -112,6 +116,7 @@
       <option name="IS_MODULE_SDK" value="true" />
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="RUN_TOOL" value="" />
       <option name="SCRIPT_NAME" value="$PROJECT_DIR$/apex_udf_call.py" />
       <option name="PARAMETERS" value="" />
       <option name="SHOW_COMMAND_LINE" value="false" />
@@ -123,8 +128,8 @@
     </configuration>
     <recent_temporary>
       <list>
-        <item itemvalue="Python.apex_integration_dev" />
         <item itemvalue="Python.apex_generate" />
+        <item itemvalue="Python.apex_integration_dev" />
         <item itemvalue="Python.apex_udf_call" />
       </list>
     </recent_temporary>
@@ -132,7 +137,7 @@
   <component name="SharedIndexes">
     <attachedChunks>
       <set>
-        <option value="bundled-python-sdk-7bb8055f9097-cbfc7b97e6b2-com.jetbrains.pycharm.community.sharedIndexes.bundled-PC-252.28238.29" />
+        <option value="bundled-python-sdk-f2b7a9f6281b-6e1f45a539f7-com.jetbrains.pycharm.pro.sharedIndexes.bundled-PY-253.29346.142" />
       </set>
     </attachedChunks>
   </component>
@@ -161,5 +166,13 @@
         </line-breakpoint>
       </breakpoints>
     </breakpoint-manager>
+  </component>
+  <component name="github-copilot-workspace">
+    <instructionFileLocations>
+      <option value=".github/instructions" />
+    </instructionFileLocations>
+    <promptFileLocations>
+      <option value=".github/prompts" />
+    </promptFileLocations>
   </component>
 </project>
