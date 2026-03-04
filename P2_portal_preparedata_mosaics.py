@@ -14,7 +14,7 @@ from O7_openeo_backscatter import get_temporalextents_mastertemporalextent
 
 import numpy as np
 from osgeo.gdalconst import GDT_Byte
-
+from src.tondor.util.tool import create_mosaic_filepath
 from src.tondor.util.tool import read_raster_info, save_raster_template, raster2array
 
 def get_temporalextents(start, end):
@@ -75,7 +75,26 @@ temporal_extents_24days = get_temporalextents("2021-01-13","2025-03-29")
 #     if row_data.post_2021 == 1:
 #         post_2021_tiles.append(row_data.Name)
 
-post_2021_tiles = ['22LCL', '22LDL', '22NDK', '23MLQ', '18LZR', '18MUE', '18MYS', '18MZS', '18NUF', '18NVF', '18NWF', '18NWG', '18NXG', '18NXH', '18NYH', '18NZH', '19LBL', '19LCL', '19LDK', '19LDL', '19LEJ', '19LEK', '19LEL', '19LFJ', '19LFK', '19LFL', '19MCM', '20LLQ', '20LLR', '20LMQ', '20LMR', '20LNQ', '20LNR', '20LPP', '20LPQ', '20LPR', '20LQP', '20LQR', '20LRM', '20MND', '20MNE', '20MPB', '20MPS', '20MPT', '20MQA', '20MQB', '20MQC', '20MQE', '20MQS', '20MQT', '20MQU', '20MRA', '20MRB', '20MRC', '20MRS', '20MRT', '20MRU', '20NNF', '20NPF', '20NQF', '20NQG', '20NQJ', '20NRH', '21LTG', '21LTH', '21LUG', '21LUH', '21LVF', '21LWF', '21LWG', '21LXF', '21LXG', '21LXK', '21LXL', '21LYF', '21LYG', '21LYK', '21LYL', '21LZF', '21LZG', '21LZH', '21LZJ', '21LZK', '21MTM', '21MTN', '21MTP', '21MTQ', '21MTR', '21MTS', '21MTT', '21MUM', '21MUN', '21MUP', '21MUQ', '21MUR', '21MUS', '21MWN', '21MWP', '21MWQ', '21MWR', '21MXM', '21MXN', '21MXP', '21MXQ', '21MXR', '21MXU', '21MYM', '21MYN', '21MYP', '21MYQ', '21MYR', '21MYS', '21MYU', '21MZN', '21MZP', '21MZR', '21MZS', '22LBM', '22LBN', '22LBP', '22LCM', '22LCN', '22LCP', '22LDM', '22MBA', '22MBB', '22MBT', '22MBU', '22MCA', '22MCB', '22MCD', '22MCE', '22MCT', '22MCU', '22MDA', '22MDB', '22MDE', '22MDU', '22MEA', '22MEB', '22MFT', '22MGS', '22MGT', '22MGU', '22MGV', '22MHA', '22NCF', '22NCG', '22NCJ', '22NCK', '22NDF', '22NDG', '22NDH', '22NDJ', '22NEF', '22NEG', '22NEH', '23MKQ', '23MKR', '23MKS', '23MLS', '23MLT', '23MLU', '23MMS', '23MMT']
+post_2021_tiles = ['22LCL', '22LDL', '22NDK', '23MLQ', '18LZR', '18MUE', '18MYS', '18MZS', '18NUF', '18NVF', '18NWF', '18NWG', '18NXG', '18NXH', '18NYH', '18NZH', '19LBL', '19LCL', '19LDK', '19LDL', '19LEJ', '19LEK', '19LEL', '19LFJ', '19LFK', '19LFL', '19MCM', '20LLQ', '20LLR', '20LMQ', '20LMR', '20LNQ', '20LNR', '20LPP', '20LPQ', '20LPR', '20LQP', '20LQR', '20LRM', '20MND', '20MNE', '20MPB', '20MPS', '20MPT', '20MQA', '20MQB', '20MQC', '20MQE', '20MQS', '20MQT', '20MQU', '20MRA', '20MRB', '20MRC', '20MRS', '20MRT', '20MRU', '20NNF', '20NPF', '20NQF', '20NQG', '20NQJ', '20NRH', '21LTG', '21LTH', '21LUG', '21LUH', '21LVF', '21LWF', '21LWG', '21LXF', '21LXG', '21LXK', '21LXL', '21LYF', '21LYG', '21LYK', '21LYL', '21LZF', '21LZG', '21LZH', '21LZJ', '21LZK', '21MTM', '21MTN', '21MTP', '21MTQ', '21MTR', '21MTS', '21MTT', '21MUM', '21MUN', '21MUP', '21MUQ', '21MUR', '21MUS', '21MWN', '21MWP', '21MWQ', '21MWR', '21MXM', '21MXN', '21MXP', '21MXQ', '21MXR', '21MXU', '21MYM', '21MYN', '21MYP', '21MYQ', '21MYR', '21MYS', '21MYU', '21MZN', '21MZP', '21MZR', '21MZS', '22LBM', '22LBN', '22LBP', '22LCM', '22LCN', '22LCP', '22LDM', '22MBA', '22MBB', '22MBT', '22MBU', '22MCA', '22MCB', '22MCD', '22MCE', '22MCT', '22MCU', '22MDA', '22MDB', '22MDE', '22MDU', '22MEA', '22MEB', '22MFT', '22MGS', '22MGT', '22MGU', '22MGV', '22MHA', '22NCF', '22NCG', '22NCJ', '22NCK', '22NDF', '22NDG', '22NDH', '22NDJ', '22NEF', '22NEG', '22NEH', '23MKQ', '23MKR', '23MKS', '23MLS', '23MLT', '23MLU', '23MMS', '23MMT', '19PEK',
+ '19PFK',
+ '16PGA',
+ '16PHS',
+ '16PEU',
+ '16PGS',
+ '18PWS',
+ '18PWR',
+ '16PFA',
+ '19NEJ',
+ '16PGB',
+ '16PGT',
+ '16PHT',
+ '16PGC',
+ '16PHA',
+ '15QZV',
+ '15QYU',
+ '15QYV',
+ '19NFJ',
+ '16PFB']
 print(f"{len(post_2021_tiles)} - {post_2021_tiles}")
 
 
@@ -95,22 +114,25 @@ for time_windows_3months_start, time_windows_3months_end in time_windows_3months
                 mosaic_input_list.append(str(portal_tile_3monthcomposite_tif))
         print(f"creating {len(mosaic_input_list)} - {mosaic_input_list}")
 
-        # # Build gdalwarp command
-        cmd = [
-                  "gdalwarp",
-                  "-t_srs", "EPSG:4326",  # Target CRS
-                  "-r", "near",  # Resampling method
-                  "-ot", "Byte",
-                  "-tr", "0.00017966", "0.00017966",
-                  "-r", "max",
-                  "-co", "NUM_THREADS=1", # Multi-threading
-                  "-co", "COMPRESS=DEFLATE",
-                  "-co", "BIGTIFF=YES",
-                  "-dstnodata", "0"  # NoData value
-              ] + mosaic_input_list + [str(output_raster)]
-
-        # Run command
-        subprocess.run(cmd, check=True)
+        create_mosaic_filepath(mosaic_input_list, output_raster, 0, "max",
+                               "Byte", target_srs="EPSG:4326",
+                               target_pixel_size="0.00017966", num_threads=4)
+        # # # Build gdalwarp command
+        # cmd = [
+        #           "gdalwarp",
+        #           "-t_srs", "EPSG:4326",  # Target CRS
+        #           "-r", "near",  # Resampling method
+        #           "-ot", "Byte",
+        #           "-tr", "0.00017966", "0.00017966",
+        #           "-r", "max",
+        #           "-co", "NUM_THREADS=1", # Multi-threading
+        #           "-co", "COMPRESS=DEFLATE",
+        #           "-co", "BIGTIFF=YES",
+        #           "-dstnodata", "0"  # NoData value
+        #       ] + mosaic_input_list + [str(output_raster)]
+        #
+        # # Run command
+        # subprocess.run(cmd, check=True)
 
         ##########################
         # output_raster_vrt = portal_data_folder_post_2021_mosaics.joinpath(f"DEC_3monthcomposite_mosaic_{time_windows_3months_start.strftime('%Y-%m-%d')}_{time_windows_3months_end.strftime('%Y-%m-%d')}_TREECOVERCHANGE.vrt")
